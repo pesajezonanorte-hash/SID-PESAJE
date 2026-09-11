@@ -1,0 +1,941 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark" data-emergency-fix="true">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SID PESAJE — Soluciones Integrales en Sistemas de Pesaje</title>
+    <link rel="icon" type="image/png" href="/favicon.png?v=1">
+    <link rel="icon" href="/favicon.png?v=1" sizes="32x32">
+    <link rel="icon" href="/favicon.png?v=1" sizes="16x16">
+    <link rel="apple-touch-icon" href="/favicon.png?v=1">
+    <meta name="description" content="Servicios Inteligentes de Pesaje (SIDP). 15+ años diseñando soluciones de pesaje industrial de alta precisión en Barranquilla, Colombia. Básculas, balanzas, sistemas de pesaje e instrumentación.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link href="https://unpkg.com/aos@2.3.1/dist/aos.css" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+    <link rel="stylesheet" href="sidp-design.css">
+    <link rel="stylesheet" href="theme-enhancements.css">
+    <link rel="stylesheet" href="ios-calendar.css">
+    <link rel="stylesheet" href="emergency-fix.css">
+    <!-- Preload critical above-the-fold images for faster LCP -->
+    <link rel="preload" as="image" href="logo.png">
+</head>
+<body>
+    <!-- AMBIENT BACKGROUND ORBS -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <!-- SPA ROOT — full-screen overlay, hidden until activated -->
+    <div id="app" data-theme="dark" style="display:none;position:relative;z-index:9999;flex-direction:column;background:#0f0f12;"></div>
+    <div id="site-content">
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- LIQUID GLASS SVG FILTERS -->
+    <!-- ═══════════════════════════════════════════ -->
+    <svg class="liquid-glass-filters" style="position:absolute;width:0;height:0;overflow:hidden;" aria-hidden="true">
+        <defs>
+            <!-- Nav: subtle, constant organic refraction -->
+            <filter id="liquid-glass-nav" x="-10%" y="-10%" width="120%" height="120%">
+                <feTurbulence id="turb-nav" type="fractalNoise" baseFrequency="0.015 0.02" numOctaves="3" seed="1" stitchTiles="stitch" result="noise"/>
+                <feDisplacementMap id="disp-nav" in="SourceGraphic" in2="noise" scale="3" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+            <!-- Cards: medium distortion for product/service/award cards -->
+            <filter id="liquid-glass-cards" x="-10%" y="-10%" width="120%" height="120%">
+                <feTurbulence id="turb-cards" type="fractalNoise" baseFrequency="0.012 0.018" numOctaves="4" seed="5" stitchTiles="stitch" result="noise"/>
+                <feDisplacementMap id="disp-cards" in="SourceGraphic" in2="noise" scale="4" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+            <!-- Sections: very subtle background refraction -->
+            <filter id="liquid-glass-sections" x="-5%" y="-5%" width="110%" height="110%">
+                <feTurbulence id="turb-sections" type="fractalNoise" baseFrequency="0.008 0.01" numOctaves="2" seed="10" stitchTiles="stitch" result="noise"/>
+                <feDisplacementMap id="disp-sections" in="SourceGraphic" in2="noise" scale="2" xChannelSelector="R" yChannelSelector="G"/>
+            </filter>
+        </defs>
+    </svg>
+
+    <!-- CURSOR GLOW REMOVED -->
+
+    <!-- FLOATING DECORATIVE SHAPES (always moving) -->
+    <div class="floating-shape floating-shape--1" data-parallax="0.15" data-parallax-rotate="15"></div>
+    <div class="floating-shape floating-shape--2" data-parallax="0.25" data-parallax-rotate="-20"></div>
+    <div class="floating-shape floating-shape--3" data-parallax="0.1" data-parallax-rotate="10"></div>
+    <div class="floating-shape floating-shape--4" data-parallax="0.2" data-parallax-rotate="-12"></div>
+    <div class="floating-shape floating-shape--5" data-parallax="0.18" data-parallax-rotate="8"></div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- NAVIGATION -->
+    <!-- ═══════════════════════════════════════════ -->
+    <header class="nav" id="navbar">
+        <div class="nav__container">
+            <a href="#hero" class="nav__logo">
+                <img src="logo.png" alt="SIDP Logo" class="nav__logo-img">
+            </a>
+            <nav class="nav__menu" id="navMenu">
+                <a href="#hero" class="nav__link active">Inicio</a>
+                <div class="nav__dropdown">
+                    <a href="#productos" class="nav__link">Básculas <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></a>
+                    <div class="nav__dropdown-menu">
+                        <a href="#" class="tech-spec-link" data-spec="industriales">Industriales</a>
+                        <a href="#" class="tech-spec-link" data-spec="camioneras">Camioneras</a>
+                        <a href="#" class="tech-spec-link" data-spec="ganaderas">Ganaderas</a>
+                        <a href="#" class="tech-spec-link" data-spec="plataforma">Plataforma</a>
+                        <a href="#" class="tech-spec-link" data-spec="gruas">Para Grúas</a>
+                    </div>
+                </div>
+                <div class="nav__dropdown">
+                    <a href="#productos" class="nav__link">Balanzas <svg width="10" height="6" viewBox="0 0 10 6"><path d="M1 1l4 4 4-4" stroke="currentColor" stroke-width="1.5" fill="none"/></svg></a>
+                    <div class="nav__dropdown-menu">
+                        <a href="#" class="tech-spec-link" data-spec="precision">De Precisión</a>
+                        <a href="#" class="tech-spec-link" data-spec="comerciales">Comerciales</a>
+                        <a href="#" class="tech-spec-link" data-spec="ind-balanzas">Industriales</a>
+                        <a href="#" class="tech-spec-link" data-spec="contadoras">Contadoras</a>
+                        <a href="#" class="tech-spec-link" data-spec="laboratorio">Para Laboratorio</a>
+                    </div>
+                </div>
+                <a href="#servicios" class="nav__link">Servicios</a>
+                <a href="#nosotros" class="nav__link">Nosotros</a>
+                <!-- Theme Toggle Button -->
+                <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema">
+                    <svg class="theme-icon theme-icon--sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
+                    <svg class="theme-icon theme-icon--moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                </button>
+            </nav>
+            <a href="#contacto" class="nav__link--cta nav__mobile-cta">Contacto</a>
+        </div>
+    </header>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- HERO SECTION — 3D PARALLAX ARTÍSTICO -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="hero" id="hero">
+        <div id="hero-flyer" class="hero-flyer" hidden aria-live="polite" aria-label="Estado del flyer principal">
+            <span id="hero-flyer-skeleton" class="hero-flyer__skeleton text-white">Cargando flyer...</span>
+            <img id="hero-flyer-img" class="hero-flyer__img" alt="Ultimo Flyer SIDPESAJE" loading="eager" decoding="async" hidden>
+            <a id="hero-flyer-link" class="hero-flyer__link" href="#hero" aria-hidden="true" tabindex="-1"></a>
+        </div>
+
+        <div class="hero__content">
+            <div class="hero__text" data-aos="fade-right">
+                <span class="hero__label reveal-element" data-delay="0">SERVICIOS INTELIGENTES DE PESAJE</span>
+                <h1 class="hero__title reveal-element" data-delay="200">
+                    Soluciones<br>
+                    <span class="hero__title-accent">Integrales</span> en<br>
+                    Sistemas de Pesaje
+                </h1>
+                <p class="hero__subtitle reveal-element" data-delay="400">
+                    Más de 15 años liderando tecnología de alta precisión para la industria colombiana. 
+                    Consultorías, servicios y suministros especializados 24/7.
+                </p>
+                <div class="hero__cta-group reveal-element" data-delay="600">
+                    <a href="#productos" class="btn btn--primary btn--glow">
+                        Descubra Nuestras Soluciones
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>
+                    <a href="#contacto" class="btn btn--ghost">Solicitar Cotización</a>
+                </div>
+                <!-- Hero Latest Instagram Post -->
+                <a href="https://instagram.com/sidp_col" target="_blank" rel="noopener noreferrer" id="hero-latest-ig" class="hero__latest-ig reveal-element" data-delay="800" style="display: none;">
+                    <div class="hero-latest-ig__image-wrapper">
+                        <img id="hero-ig-img" src="" alt="Latest Post" class="hero-latest-ig__img" />
+                    </div>
+                    <div class="hero-latest-ig__content">
+                        <span class="hero-latest-ig__badge">Nuevo en Instagram</span>
+                        <p id="hero-ig-caption" class="hero-latest-ig__caption">Cargando...</p>
+                    </div>
+                    <div class="hero-latest-ig__icon">
+                        <svg viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                    </div>
+                </a>
+            </div>
+            <div class="hero__visual reveal-element" data-delay="300">
+                <div class="hero__stats" data-reveal-children=".hero__stat">
+                    <div class="hero__stat">
+                        <span class="hero__stat-number" data-count="15">0</span><span class="hero__stat-plus">+</span>
+                        <span class="hero__stat-label">Años de Experiencia</span>
+                    </div>
+                    <div class="hero__stat">
+                        <span class="hero__stat-number" data-count="100">0</span><span class="hero__stat-plus">+</span>
+                        <span class="hero__stat-label">Clientes Satisfechos</span>
+                    </div>
+                    <div class="hero__stat">
+                        <span class="hero__stat-number">24/7</span>
+                        <span class="hero__stat-label">Soporte Técnico</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="hero__scroll-indicator">
+            <span>Scroll</span>
+            <div class="hero__scroll-line"></div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- TICKER BAND -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div class="sidp-ticker" aria-hidden="true">
+        <div class="sidp-ticker__track">
+            <span class="sidp-ticker__item">Soluciones de Pesaje Industrial</span>
+            <span class="sidp-ticker__item">15+ Años de Experiencia</span>
+            <span class="sidp-ticker__item">Servicio Técnico 24/7</span>
+            <span class="sidp-ticker__item">Básculas &amp; Balanzas</span>
+            <span class="sidp-ticker__item">Calibración Certificada</span>
+            <span class="sidp-ticker__item">Barranquilla, Colombia</span>
+            <span class="sidp-ticker__item">100+ Clientes Satisfechos</span>
+            <span class="sidp-ticker__item">Alta Precisión Industrial</span>
+            <!-- duplicate for seamless loop -->
+            <span class="sidp-ticker__item">Soluciones de Pesaje Industrial</span>
+            <span class="sidp-ticker__item">15+ Años de Experiencia</span>
+            <span class="sidp-ticker__item">Servicio Técnico 24/7</span>
+            <span class="sidp-ticker__item">Básculas &amp; Balanzas</span>
+            <span class="sidp-ticker__item">Calibración Certificada</span>
+            <span class="sidp-ticker__item">Barranquilla, Colombia</span>
+            <span class="sidp-ticker__item">100+ Clientes Satisfechos</span>
+            <span class="sidp-ticker__item">Alta Precisión Industrial</span>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- AWARDS SECTION -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="awards" id="reconocimientos" data-reveal>
+        <div class="section__container">
+            <div class="section__header reveal-element">
+                <span class="section__label">RECONOCIMIENTOS</span>
+                <h2 class="section__title">Excelencia <span class="text-gold">Certificada</span></h2>
+            </div>
+            <div class="awards__grid">
+                <div class="award-card reveal-element" data-delay="0">
+                    <div class="award-card__icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="award-card__title">Premio a la Innovación</h3>
+                    <p class="award-card__source">Cámara de Comercio 2023</p>
+                    <p class="award-card__desc">Reconocimiento por contribuciones destacadas en innovación industrial y sistemas de pesaje inteligente.</p>
+                </div>
+                <div class="award-card reveal-element" data-delay="200">
+                    <div class="award-card__icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="award-card__title">Calidad y Precisión</h3>
+                    <p class="award-card__source">Estándares Internacionales</p>
+                    <p class="award-card__desc">Rigurosos controles técnicos y metrológicos que aseguran la máxima exactitud en cada pieza de equipo.</p>
+                </div>
+                <div class="award-card reveal-element" data-delay="400">
+                    <div class="award-card__icon">
+                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none"><path d="M8 21h8m-4-4v4m-4.5-8.65C7.34 11.15 5 8.52 5 5.5 5 2.46 8.13 1 12 1s7 1.46 7 4.5c0 3.02-2.34 5.65-4.5 6.85" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="award-card__title">Premio Nacional de Ingeniería</h3>
+                    <p class="award-card__source">Asoc. Colombiana de Ingenieros</p>
+                    <p class="award-card__desc">Reconocimiento nacional por el desarrollo de sistemas de pesaje inteligente de alta precisión.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- PRODUCTS SECTION -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="products" id="productos" data-reveal>
+        <div class="section__container">
+            <div class="section__header reveal-element">
+                <span class="section__label">CATÁLOGO</span>
+                <h2 class="section__title">Nuestras <span class="text-red">Soluciones</span></h2>
+                <p class="section__subtitle">Equipos de pesaje industrial diseñados para satisfacer las demandas más exigentes de la industria moderna.</p>
+            </div>
+            <div class="products__grid">
+                <div class="product-card reveal-element" data-delay="0">
+                    <div class="product-card__image-wrapper" data-aos="zoom-in" data-aos-delay="200">
+                        <img src="truck_scale.png" alt="Básculas Industriales" class="product-card__image" loading="lazy">
+                        <div class="product-card__overlay"></div>
+                    </div>
+                    <div class="product-card__content">
+                        <span class="product-card__tag">BÁSCULAS</span>
+                        <h3 class="product-card__title">Básculas Industriales</h3>
+                        <p class="product-card__desc">Básculas camioneras, ganaderas, de plataforma y para grúas. Diseñadas para operación continua con capacidades desde 500 kg hasta 120 toneladas.</p>
+                        <a href="#contacto" class="product-card__link">
+                            Explorar <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </a>
+                    </div>
+                </div>
+                <div class="product-card reveal-element" data-delay="150">
+                    <div class="product-card__image-wrapper" data-aos="zoom-in" data-aos-delay="200">
+                        <img src="precision_balance.png" alt="Balanzas de Precisión" class="product-card__image" loading="lazy">
+                        <div class="product-card__overlay"></div>
+                    </div>
+                    <div class="product-card__content">
+                        <span class="product-card__tag">BALANZAS</span>
+                        <h3 class="product-card__title">Balanzas de Precisión</h3>
+                        <p class="product-card__desc">Balanzas analíticas y de precisión para laboratorio, comerciales, contadoras e industriales. Resolución desde 0.001g hasta 0.1g.</p>
+                        <a href="#contacto" class="product-card__link">
+                            Explorar <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </a>
+                    </div>
+                </div>
+                <div class="product-card reveal-element" data-delay="300">
+                    <div class="product-card__image-wrapper" data-aos="zoom-in" data-aos-delay="200">
+                        <img src="weighing_system.png" alt="Sistemas de Pesaje" class="product-card__image" loading="lazy">
+                        <div class="product-card__overlay"></div>
+                    </div>
+                    <div class="product-card__content">
+                        <span class="product-card__tag">SISTEMAS</span>
+                        <h3 class="product-card__title">Sistemas de Pesaje</h3>
+                        <p class="product-card__desc">Sistemas continuos, de dosificación, dinámicos, en movimiento y de control de producción. Automatización integral del pesaje industrial.</p>
+                        <a href="#contacto" class="product-card__link">
+                            Explorar <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </a>
+                    </div>
+                </div>
+                <div class="product-card reveal-element" data-delay="450">
+                    <div class="product-card__image-wrapper" data-aos="zoom-in" data-aos-delay="200">
+                        <img src="instrumentation.png" alt="Instrumentación" class="product-card__image" loading="lazy">
+                        <div class="product-card__overlay"></div>
+                    </div>
+                    <div class="product-card__content">
+                        <span class="product-card__tag">INSTRUMENTACIÓN</span>
+                        <h3 class="product-card__title">Instrumentación</h3>
+                        <p class="product-card__desc">Indicadores digitales, celdas de carga, sensores de peso, transmisores y accesorios industriales de última generación.</p>
+                        <a href="#contacto" class="product-card__link">
+                            Explorar <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SERVICES SECTION -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="services" id="servicios" data-reveal>
+        <div class="section__container">
+            <div class="services__header reveal-element">
+                <span class="section__label">SERVICIOS</span>
+                <h2 class="section__title">Nuestros Servicios <span class="text-red">Especializados</span></h2>
+                <p class="section__subtitle">Soluciones técnicas integrales para optimizar tus procesos de medición y control de peso con estándares internacionales.</p>
+            </div>
+
+            <!-- Servicios Principales -->
+            <div class="services__grid">
+                <!-- Servicio 1 -->
+                <div class="service-plus-card reveal-element" data-aos="fade-up" data-delay="0">
+                    <div class="service-plus-card__icon-wrapper">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="service-plus-card__title">Mantenimiento</h3>
+                    <p class="service-plus-card__desc">Mantenimiento preventivo y correctivo de equipos de pesaje industrial.</p>
+                    <ul class="service-plus-card__features">
+                        <li>Mantenimiento programado</li>
+                        <li>Reparación de básculas</li>
+                        <li>Reemplazo de componentes</li>
+                        <li>Diagnóstico especializado</li>
+                    </ul>
+                </div>
+
+                <!-- Servicio 2 -->
+                <div class="service-plus-card reveal-element" data-aos="fade-up" data-delay="150">
+                    <div class="service-plus-card__icon-wrapper">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="service-plus-card__title">Calibración</h3>
+                    <p class="service-plus-card__desc">Garantizamos la precisión y cumplimiento normativo de sus equipos.</p>
+                    <ul class="service-plus-card__features">
+                        <li>Trazabilidad metrológica</li>
+                        <li>Certificados oficiales</li>
+                        <li>Verificación periódica</li>
+                        <li>Ajuste a punto</li>
+                    </ul>
+                </div>
+
+                <!-- Servicio 3 -->
+                <div class="service-plus-card reveal-element" data-aos="fade-up" data-delay="300">
+                    <div class="service-plus-card__icon-wrapper">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M22 12h-4l-3 9L9 3l-3 9H2" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="service-plus-card__title">Instalación</h3>
+                    <p class="service-plus-card__desc">Instalación profesional de sistemas de pesaje con garantía.</p>
+                    <ul class="service-plus-card__features">
+                        <li>Básculas industriales</li>
+                        <li>Configuración experta</li>
+                        <li>Capacitación técnica</li>
+                        <li>Documentación</li>
+                    </ul>
+                </div>
+
+                <!-- Servicio 4 -->
+                <div class="service-plus-card reveal-element" data-aos="fade-up" data-delay="0">
+                    <div class="service-plus-card__icon-wrapper">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zm0 10l-10 5 10 5 10-5-10-5z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="service-plus-card__title">Consultoría</h3>
+                    <p class="service-plus-card__desc">Selección, implementación y optimización de sistemas a su medida.</p>
+                    <ul class="service-plus-card__features">
+                        <li>Análisis de necesidades</li>
+                        <li>Selección de equipos</li>
+                        <li>Optimización</li>
+                        <li>Asesoría normativa</li>
+                    </ul>
+                </div>
+
+                <!-- Servicio 5 -->
+                <div class="service-plus-card reveal-element" data-aos="fade-up" data-delay="150">
+                    <div class="service-plus-card__icon-wrapper">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M2 12h4l4-8 4 16 4-8h4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="service-plus-card__title">Modernización</h3>
+                    <p class="service-plus-card__desc">Actualización tecnológica de equipos para mejorar conectividad.</p>
+                    <ul class="service-plus-card__features">
+                        <li>Nuevos indicadores</li>
+                        <li>Integración ERP</li>
+                        <li>Automatización</li>
+                        <li>Nuevas interfaces</li>
+                    </ul>
+                </div>
+
+                <!-- Servicio 6 -->
+                <div class="service-plus-card reveal-element" data-aos="fade-up" data-delay="300">
+                    <div class="service-plus-card__icon-wrapper">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="service-plus-card__title">Soporte Técnico</h3>
+                    <p class="service-plus-card__desc">Soporte permanente para continuidad operativa sin interrupciones.</p>
+                    <ul class="service-plus-card__features">
+                        <li>Soporte inmediato</li>
+                        <li>Asistencia remota</li>
+                        <li>Atención a urgencias</li>
+                        <li>Respuesta en sitio</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Proceso de Trabajo -->
+            <div class="process-timeline reveal-element">
+                <h3 class="process-timeline__title">Proceso de Trabajo</h3>
+                <div class="process-timeline__path">
+                    <div class="process-step" data-step="1">
+                        <div class="process-step__node">01</div>
+                        <h4 class="process-step__name">Evaluación</h4>
+                        <p class="process-step__desc">Análisis de necesidades y equipamiento.</p>
+                    </div>
+                    <div class="process-step" data-step="2">
+                        <div class="process-step__node">02</div>
+                        <h4 class="process-step__name">Propuesta</h4>
+                        <p class="process-step__desc">Soluciones y presupuesto justos.</p>
+                    </div>
+                    <div class="process-step" data-step="3">
+                        <div class="process-step__node">03</div>
+                        <h4 class="process-step__name">Ejecución</h4>
+                        <p class="process-step__desc">Implementación con altos estándares.</p>
+                    </div>
+                    <div class="process-step" data-step="4">
+                        <div class="process-step__node">04</div>
+                        <h4 class="process-step__name">Seguimiento</h4>
+                        <p class="process-step__desc">Garantía total y respaldo técnico.</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Beneficios Glassmorphism -->
+            <div class="benefits reveal-element">
+                <h3 class="benefits__title">¿Por qué elegirnos?</h3>
+                <div class="benefits__grid">
+                    <div class="benefit-glass">
+                        <span class="benefit-glass__num">01</span>
+                        <h4>Expertos Certificados</h4>
+                        <p>Técnicos certificados multimarca.</p>
+                    </div>
+                    <div class="benefit-glass">
+                        <span class="benefit-glass__num">02</span>
+                        <h4>Respuesta Rápida</h4>
+                        <p>Tiempos de servicio optimizados.</p>
+                    </div>
+                    <div class="benefit-glass">
+                        <span class="benefit-glass__num">03</span>
+                        <h4>Garantía Total</h4>
+                        <p>Soporte post-venta permanente.</p>
+                    </div>
+                    <div class="benefit-glass">
+                        <span class="benefit-glass__num">04</span>
+                        <h4>Tecnología 100%</h4>
+                        <p>Diagnóstico de vanguardia.</p>
+                    </div>
+                    <div class="benefit-glass">
+                        <span class="benefit-glass__num">05</span>
+                        <h4>Documentación</h4>
+                        <p>Informes técnicos completos.</p>
+                    </div>
+                    <div class="benefit-glass">
+                        <span class="benefit-glass__num">06</span>
+                        <h4>Compromiso Total</h4>
+                        <p>Éxito garantizado en tu operación.</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- ABOUT / NOSOTROS -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="about" id="nosotros" data-reveal>
+        <div class="section__container">
+            <div class="section__header reveal-element">
+                <span class="section__label">NOSOTROS</span>
+                <h2 class="section__title">15+ Años de <span class="text-gold">Excelencia</span> Industrial</h2>
+                <p class="section__subtitle">Líderes en pesaje industrial con más de una década y media de trayectoria ofreciendo consultorías, servicios y suministros especializados.</p>
+            </div>
+
+            <div class="about__mvv">
+                <div class="about__card reveal-element" data-delay="0">
+                    <div class="about__card-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="3" stroke="#CC0000" stroke-width="1.5"/><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z" stroke="#CC0000" stroke-width="1.5"/></svg>
+                    </div>
+                    <h3 class="about__card-title">Nuestra Misión</h3>
+                    <p class="about__card-text">Proveer soluciones tecnológicas avanzadas en sistemas de pesaje que optimicen los procesos industriales, asegurando precisión, confiabilidad y soporte técnico especializado para cada uno de nuestros clientes.</p>
+                </div>
+                <div class="about__card reveal-element" data-delay="200">
+                    <div class="about__card-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" stroke="#CC0000" stroke-width="1.5"/><circle cx="12" cy="12" r="3" stroke="#CC0000" stroke-width="1.5"/></svg>
+                    </div>
+                    <h3 class="about__card-title">Nuestra Visión</h3>
+                    <p class="about__card-text">Ser reconocidos como el aliado estratégico principal para las empresas que requieren soluciones de pesaje confiables y precisas, contribuyendo al crecimiento industrial nacional y posicionándonos como referentes en innovación metrológica.</p>
+                </div>
+                <div class="about__card reveal-element" data-delay="400">
+                    <div class="about__card-icon">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </div>
+                    <h3 class="about__card-title">Nuestro Compromiso</h3>
+                    <p class="about__card-text">Dedicados a la satisfacción total del cliente a través de productos de calidad, servicios especializados y soluciones personalizadas que se adaptan a las necesidades específicas de cada operación industrial.</p>
+                </div>
+            </div>
+
+            <div class="about__metrics reveal-element" data-delay="200" data-reveal-children=".metric">
+                <div class="metric">
+                    <div class="metric__value"><span data-count="15">0</span>+</div>
+                    <div class="metric__label">AÑOS DE<br>EXPERIENCIA</div>
+                </div>
+                <div class="metric">
+                    <div class="metric__value"><span data-count="100">0</span>+</div>
+                    <div class="metric__label">CLIENTES<br>SATISFECHOS</div>
+                </div>
+                <div class="metric">
+                    <div class="metric__value"><span data-count="150">0</span>+</div>
+                    <div class="metric__label">EQUIPOS<br>INSTALADOS</div>
+                </div>
+                <div class="metric">
+                    <div class="metric__value">24/7</div>
+                    <div class="metric__label">SOPORTE<br>TÉCNICO</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- TEAM SECTION -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="team" id="equipo" data-reveal>
+        <div class="section__container">
+            <div class="section__header reveal-element">
+                <span class="section__label">NUESTRO EQUIPO</span>
+                <h2 class="section__title">Expertos a su <span class="text-red">Servicio</span></h2>
+                <p class="section__subtitle">Conozca a los profesionales de la metrología y pesaje industrial que respaldan nuestra excelencia e innovación.</p>
+            </div>
+            
+            <div class="team__grid">
+                <!-- Anyelo -->
+                <div class="team-card reveal-element" data-delay="0">
+                    <div class="team-card__image-wrapper">
+                        <img src="anyelo_sid.jpg" alt="Anyelo Romero" class="team-card__image" loading="lazy">
+                        <div class="team-card__overlay"></div>
+                    </div>
+                    <div class="team-card__info">
+                        <h3 class="team-card__name">Anyelo Romero</h3>
+                        <span class="team-card__role">Gerente General</span>
+                        <p class="team-card__desc">Ing. Electrónico con más de 20 años de experiencia en sistemas de pesaje industrial.</p>
+                    </div>
+                </div>
+                
+                <!-- Jhon -->
+                <div class="team-card reveal-element" data-delay="150">
+                    <div class="team-card__image-wrapper">
+                        <img src="jhon_sid.jpg" alt="Jhon Romero" class="team-card__image" loading="lazy">
+                        <div class="team-card__overlay"></div>
+                    </div>
+                    <div class="team-card__info">
+                        <h3 class="team-card__name">Jhon Romero</h3>
+                        <span class="team-card__role">Gerente Técnico</span>
+                        <p class="team-card__desc">Especialista en instrumentación y sistemas de control automáticos de peso.</p>
+                    </div>
+                </div>
+                
+                <!-- Justo -->
+                <div class="team-card reveal-element" data-delay="300">
+                    <div class="team-card__image-wrapper">
+                        <img src="justo_sid.jpg" alt="Justo Romero" class="team-card__image" loading="lazy">
+                        <div class="team-card__overlay"></div>
+                    </div>
+                    <div class="team-card__info">
+                        <h3 class="team-card__name">Justo Romero</h3>
+                        <span class="team-card__role">Director de proyectos</span>
+                        <p class="team-card__desc">Experto en implementación, desarrollo y acompañamiento en medición e inspección.</p>
+                    </div>
+                </div>
+                
+
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- CONTACT / CLIENT PANEL SECTION -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="contact" id="contacto" data-reveal>
+        <div class="section__container">
+            <div class="section__header reveal-element">
+                <span class="section__label">GESTIÓN DE SOLICITUDES</span>
+                <h2 class="section__title">Su Portal de <span class="text-red">Servicios</span></h2>
+                <p class="section__subtitle">Envíe mensajes, agende servicios y haga seguimiento a sus solicitudes desde un solo lugar.</p>
+            </div>
+            <div class="contact__layout">
+                <div class="contact__info reveal-element" data-delay="0" data-reveal-children=".contact__info-card">
+                    <div class="contact__info-card">
+                        <div class="contact__info-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="#CC0000" stroke-width="1.5"/><circle cx="12" cy="10" r="3" stroke="#CC0000" stroke-width="1.5"/></svg>
+                        </div>
+                        <div>
+                            <h4>Ubicación</h4>
+                            <p>Calle 84a1 #41b-65<br>Barranquilla, Atlántico<br>Colombia</p>
+                        </div>
+                    </div>
+                    <div class="contact__info-card">
+                        <div class="contact__info-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72 12.84 12.84 0 00.7 2.81 2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45 12.84 12.84 0 002.81.7A2 2 0 0122 16.92z" stroke="#CC0000" stroke-width="1.5"/></svg>
+                        </div>
+                        <div>
+                            <h4>Teléfono</h4>
+                            <p>+57 301 132 4453</p>
+                            <span class="contact__emergency">Emergencias 24/7</span>
+                        </div>
+                    </div>
+                    <div class="contact__info-card">
+                        <div class="contact__info-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" stroke="#CC0000" stroke-width="1.5"/><path d="M22 6l-10 7L2 6" stroke="#CC0000" stroke-width="1.5"/></svg>
+                        </div>
+                        <div>
+                            <h4>Email</h4>
+                            <p>comercial@sidpesaje.com</p>
+                        </div>
+                    </div>
+                    <div class="contact__info-card">
+                        <div class="contact__info-icon">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="#CC0000" stroke-width="1.5"/><path d="M12 6v6l4 2" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round"/></svg>
+                        </div>
+                        <div>
+                            <h4>Horario</h4>
+                            <p>Lun - Vie: 8:00 AM - 6:00 PM<br>Sáb: 8:00 AM - 12:00 PM</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="contact__form reveal-element" data-delay="200">
+                    <div class="portal-cta portal-cta--access flex flex-col items-center justify-center text-center">
+                        <div class="portal-cta__icon mx-auto">
+                            <svg width="40" height="40" viewBox="0 0 24 24" fill="none"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" stroke="#CC0000" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </div>
+                        <h4 class="text-center mx-auto">Acceder al portal</h4>
+                        <p class="text-center mx-auto">Ingresa al mismo sistema SPA con Firebase Auth. La experiencia final cambia automaticamente segun el rol guardado en Firestore.</p>
+                        <div class="portal-access-actions flex flex-col items-center justify-center w-full mx-auto">
+                            <a href="/agenda?intent=cliente" onclick="event.preventDefault(); window.abrirPortalClientes('cliente');" class="btn btn--primary btn--glow portal-access-btn">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                                Entrar como Cliente
+                            </a>
+                            <a href="/agenda?intent=admin" onclick="event.preventDefault(); window.abrirPortalClientes('admin');" class="btn btn--secondary portal-access-btn portal-access-btn--admin">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
+                                Entrar como Administrador
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MAP -->
+            <div class="contact__map reveal-element" data-delay="400">
+                <div class="contact__map-header">
+                    <span class="section__label">UBICACIÓN</span>
+                    <h3 class="contact__map-title">Encuéntranos aquí</h3>
+                    <p class="contact__map-address">Calle 84a1 #41b-65 · Barranquilla, Atlántico · Colombia</p>
+                </div>
+                <iframe
+                    src="https://maps.google.com/maps?q=Calle+84a1+%2341b-65,+Barranquilla,+Atl%C3%A1ntico,+Colombia&output=embed&z=16"
+                    width="100%"
+                    height="420"
+                    style="border:0;border-radius:12px;display:block;"
+                    allowfullscreen=""
+                    loading="lazy"
+                    referrerpolicy="no-referrer-when-downgrade"
+                    title="Ubicación SID Pesaje — Barranquilla">
+                </iframe>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- RESCHEDULE MODAL -->
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- INSTAGRAM FEED (SOCIAL PROOF) -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section class="instagram-section" data-reveal>
+        <div class="section__container">
+            <div class="section__header reveal-element">
+                <span class="section__label">SÍGUENOS</span>
+                <h2 class="section__title">Sigue nuestra <span class="text-red">Historia</span></h2>
+            </div>
+            <div class="instagram-feed-juicer" id="juicerFeedWrapper" style="min-height: 300px; padding: 20px 0;">
+                <ul class="juicer-feed" data-feed-id="sidp_col" id="juicerFeedList">
+                    <h1 class="referral"></h1>
+                </ul>
+                <script type="text/javascript" src="https://www.juicer.io/embed/sidp_col/embed-code.js" async defer></script>
+            </div>
+            <!-- Fallback: shown when Juicer feed loads no content -->
+            <div class="instagram-fallback-cta" id="instagramFallbackCta" style="display:none;">
+                <a href="https://www.instagram.com/sidp_col/" target="_blank" rel="noopener noreferrer" class="liquid-glass-btn" id="igFallbackBtn">
+                    <span class="liquid-glass-btn__glow"></span>
+                    <span class="liquid-glass-btn__content">
+                        <svg class="liquid-glass-btn__icon" viewBox="0 0 24 24" fill="none" width="28" height="28">
+                            <rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" stroke-width="1.8"/>
+                            <circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.8"/>
+                            <circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/>
+                        </svg>
+                        <span class="liquid-glass-btn__text">
+                            <span class="liquid-glass-btn__label">Síguenos en Instagram</span>
+                            <span class="liquid-glass-btn__handle">@sidp_col</span>
+                        </span>
+                        <svg class="liquid-glass-btn__arrow" viewBox="0 0 24 24" fill="none" width="20" height="20">
+                            <path d="M5 12h14M12 5l7 7-7 7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                    </span>
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SECCIÓN: Autoridad y Confianza -->
+    <!-- ═══════════════════════════════════════════ -->
+    <section id="autoridad-confianza" class="autoridad-confianza">
+        <div class="section__container">
+            <div class="section__header reveal-element" data-aos="fade-up">
+                <span class="section__label">¿Por qué elegirnos?</span>
+                <h2 class="section__title">Respaldados por años de experiencia en <span class="text-red">pesaje industrial</span></h2>
+            </div>
+            
+            <div class="autoridad-confianza__grid">
+                <!-- Tarjeta 1 - Precisión Garantizada -->
+                <div class="card-confianza" data-aos="fade-up" data-aos-delay="100">
+                    <div class="card-confianza__icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-scale">
+                            <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
+                            <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z"/>
+                            <path d="M7 21h10"/>
+                            <path d="M12 3v18"/>
+                            <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2"/>
+                        </svg>
+                    </div>
+                    <h3 class="card-confianza__title">Precisión Garantizada</h3>
+                    <p class="card-confianza__desc">Nuestros equipos de pesaje cumplen con los más altos estándares metrológicos, asegurando mediciones exactas que protegen la rentabilidad de su operación.</p>
+                </div>
+                
+                <!-- Tarjeta 2 - Soporte 24/7 -->
+                <div class="card-confianza" data-aos="fade-up" data-aos-delay="250">
+                    <div class="card-confianza__icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-clock">
+                            <circle cx="12" cy="12" r="10"/>
+                            <polyline points="12 6 12 12 16 14"/>
+                        </svg>
+                    </div>
+                    <h3 class="card-confianza__title">Soporte 24/7</h3>
+                    <p class="card-confianza__desc">Operamos las 24 horas para que su producción nunca se detenga. Nuestro equipo técnico en Barranquilla responde en menos de 2 horas ante cualquier emergencia.</p>
+                </div>
+                
+                <!-- Tarjeta 3 - Experiencia Certificada -->
+                <div class="card-confianza" data-aos="fade-up" data-aos-delay="400">
+                    <div class="card-confianza__icon">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-shield-check">
+                            <path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2-1 4-2 7-2 2.89 0 4.7 1 6.83 2a1 1 0 0 1 .5.88z"/>
+                            <path d="m9 12 2 2 4-4"/>
+                        </svg>
+                    </div>
+                    <h3 class="card-confianza__title">Experiencia Certificada</h3>
+                    <p class="card-confianza__desc">Más de 15 años respaldando a la industria de la Costa Caribe con soluciones de pesaje certificadas, calibraciones acreditadas y un compromiso inquebrantable con la calidad.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- FOOTER -->
+    <!-- ═══════════════════════════════════════════ -->
+    <footer class="footer">
+        <div class="section__container">
+            <div class="footer__grid">
+                <div class="footer__brand">
+                    <a href="#hero" class="nav__logo">
+                        <img src="logo.png" alt="SIDP Logo" class="footer__logo-img">
+                    </a>
+                    <p class="footer__desc">Servicios Inteligentes de Pesaje. Más de 15 años diseñando el futuro de la medición industrial en Colombia. Consultorías, servicios y suministros.</p>
+                </div>
+                <div class="footer__links">
+                    <h4>Productos</h4>
+                    <a href="#productos">Básculas Industriales</a>
+                    <a href="#productos">Balanzas de Precisión</a>
+                    <a href="#productos">Sistemas de Pesaje</a>
+                    <a href="#productos">Instrumentación</a>
+                </div>
+                <div class="footer__links">
+                    <h4>Servicios</h4>
+                    <a href="#servicios">Mantenimiento</a>
+                    <a href="#servicios">Calibración</a>
+                    <a href="#servicios">Instalación</a>
+                    <a href="#servicios">Modernización</a>
+                </div>
+                <div class="footer__links">
+                    <h4>Empresa</h4>
+                    <a href="#nosotros">Nosotros</a>
+                    <a href="#reconocimientos">Reconocimientos</a>
+                    <a href="#contacto">Contacto</a>
+                </div>
+            </div>
+            <div class="footer__bottom">
+                <p>&copy; 2024 Servicios Inteligentes de Pesaje (SIDP). Todos los derechos reservados.</p>
+                <div class="footer__social">
+                    <a href="#" aria-label="Facebook">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>
+                    <a href="https://instagram.com/sidp_col" aria-label="Instagram" target="_blank">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="2" width="20" height="20" rx="5" stroke="currentColor" stroke-width="1.5"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor"/></svg>
+                    </a>
+                    <a href="#" aria-label="LinkedIn">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M16 8a6 6 0 016 6v7h-4v-7a2 2 0 00-4 0v7h-4v-7a6 6 0 016-6zM2 9h4v12H2zM4 6a2 2 0 100-4 2 2 0 000 4z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <div class="floating-container" aria-label="Acciones rápidas">
+    <!-- FLOATING WHATSAPP BUTTON -->
+    <a href="https://wa.me/573011324453?text=Hola%2C%20estoy%20interesado%20en%20sus%20soluciones%20de%20pesaje.%20%C2%BFPodr%C3%ADan%20brindarme%20m%C3%A1s%20informaci%C3%B3n%3F" 
+       target="_blank" 
+       rel="noopener noreferrer" 
+       class="floating-btn whatsapp-float" 
+       id="whatsappFloat" 
+       aria-label="Contáctanos por WhatsApp">
+        <svg class="whatsapp-float__icon" viewBox="0 0 24 24" fill="currentColor" width="28" height="28">
+            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+        </svg>
+        <span class="whatsapp-float__text">¡Escríbenos!</span>
+        <span class="whatsapp-float__pulse"></span>
+    </a>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- SID-AI VIRTUAL ASSISTANT -->
+    <!-- ═══════════════════════════════════════════ -->
+
+    <!-- Backdrop overlay -->
+    <div class="sidai-backdrop" id="sidaiBackdrop"></div>
+
+    <!-- Floating trigger button -->
+    <button class="floating-btn sidai-trigger" id="sidaiTrigger" type="button" aria-label="Abrir asistente virtual SID-AI">
+        <svg class="sidai-trigger__icon sidai-trigger__icon--open" viewBox="0 0 24 24" fill="none" width="28" height="28">
+            <path d="M12 2a7 7 0 017 7v1.07A7.001 7.001 0 0119 17v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a7.001 7.001 0 010-6.93V9a7 7 0 017-7z" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="9" cy="12" r="1.25" fill="currentColor"/>
+            <circle cx="15" cy="12" r="1.25" fill="currentColor"/>
+            <path d="M9.5 16a3.5 3.5 0 005 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        <svg class="sidai-trigger__icon sidai-trigger__icon--close" viewBox="0 0 24 24" fill="none" width="28" height="28">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="floating-btn__label">SID-AI</span>
+        <span class="sidai-trigger__pulse"></span>
+    </button>
+    </div>
+
+    <!-- Chat Window -->
+    <div class="sidai-chat" id="sidaiChat">
+        <!-- Header -->
+        <div class="sidai-chat__header">
+            <div class="sidai-chat__avatar">
+                <svg viewBox="0 0 24 24" fill="none" width="24" height="24">
+                    <path d="M12 2a7 7 0 017 7v1.07A7.001 7.001 0 0119 17v1a2 2 0 01-2 2H7a2 2 0 01-2-2v-1a7.001 7.001 0 010-6.93V9a7 7 0 017-7z" stroke="currentColor" stroke-width="1.5"/>
+                    <circle cx="9" cy="12" r="1.25" fill="currentColor"/>
+                    <circle cx="15" cy="12" r="1.25" fill="currentColor"/>
+                    <path d="M9.5 16a3.5 3.5 0 005 0" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                </svg>
+                <span class="sidai-chat__status-dot"></span>
+            </div>
+            <div class="sidai-chat__info">
+                <h4 class="sidai-chat__name">SID-AI</h4>
+                <span class="sidai-chat__status">Asistente Virtual • En línea</span>
+            </div>
+            <button class="sidai-chat__close" id="sidaiClose" aria-label="Cerrar chat">
+                <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                    <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Messages -->
+        <div class="sidai-chat__messages" id="sidaiMessages">
+            <div class="sidai-msg sidai-msg--bot">
+                <div class="sidai-msg__bubble">
+                    ¡Hola! 👋 Soy <strong>SID-AI</strong>, tu asistente virtual de pesaje industrial. ¿En qué puedo ayudarte hoy?
+                </div>
+                <span class="sidai-msg__time">Ahora</span>
+            </div>
+            <div class="sidai-chat__chips">
+                <button class="sidai-chip" data-msg="Quiero información sobre básculas camioneras">🚛 Básculas camioneras</button>
+                <button class="sidai-chip" data-msg="Necesito una balanza de precisión">⚖️ Balanzas de precisión</button>
+                <button class="sidai-chip" data-msg="¿Qué servicios técnicos ofrecen?">🔧 Servicios técnicos</button>
+                <button class="sidai-chip" data-msg="Quiero solicitar una cotización">💰 Cotización</button>
+            </div>
+        </div>
+
+        <!-- Input -->
+        <div class="sidai-chat__input-area">
+            <input type="text" class="sidai-chat__input" id="sidaiInput" placeholder="Escribe tu consulta..." autocomplete="off"/>
+            <button class="sidai-chat__send" id="sidaiSend" aria-label="Enviar mensaje">
+                <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
+                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════ -->
+    <!-- TECH SPEC MODAL -->
+    <!-- ═══════════════════════════════════════════ -->
+    <div id="techSpecModal" class="tech-modal" aria-hidden="true">
+        <div class="tech-modal__overlay" id="techModalOverlay"></div>
+        <div class="tech-modal__content">
+            <button class="tech-modal__close" id="techModalClose" aria-label="Cerrar ficha">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <h3 class="tech-modal__title" id="techModalTitle">Título</h3>
+            <p class="tech-modal__desc" id="techModalDesc">Descripción técnica detallada.</p>
+        </div>
+    </div>
+    </div>
+    
+    <script src="main.js"></script>
+    <script type="module" src="js/hero-flyer.js"></script>
+    <script type="module" src="js/client-panel.js"></script>
+    <script type="module" src="js/admin-bootstrap.js"></script>
+    <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
+    <script>AOS.init({ disable: true });</script>
+    <script src="emergency-fix.js"></script>
+
+</body>
+</html>

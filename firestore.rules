@@ -1,0 +1,155 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ─── Helper functions ─────────────────────────────────────
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    function isOwner(resource) {
+      return isAuthenticated() && request.auth.uid == resource.data.creadoPor;
+    }
+
+    function isRequestCreator(resource) {
+      return isAuthenticated() && request.auth.uid == resource.data.createdBy;
+    }
+
+    function isRequestParticipant(resource) {
+      return isAuthenticated() && (
+        request.auth.uid == resource.data.createdBy
+        || request.auth.uid == resource.data.ownerUid
+        || request.auth.token.email == resource.data.clientEmail
+      );
+    }
+
+    function isLegacyRequestParticipant(resource) {
+      return isAuthenticated() && (
+        request.auth.uid == resource.data.createdBy
+        || request.auth.uid == resource.data.ownerUid
+        || request.auth.uid == resource.data.uid
+        || request.auth.token.email == resource.data.clientEmail
+        || request.auth.token.email == resource.data.email
+        || request.auth.token.email == resource.data.correo
+        || request.auth.token.email == resource.data.correoCliente
+      );
+    }
+
+    // ─── mensajes_contacto (legacy — preserved) ──────────────
+    match /mensajes_contacto/{msgId} {
+      allow create: if isAuthenticated();
+      allow read: if isAdmin() || (isAuthenticated() && resource.data.email_verificado == request.auth.token.email);
+      allow update: if isAdmin() || isOwner(resource);
+      allow delete: if isAdmin();
+    }
+
+    // ─── clientes ─────────────────────────────────────────────
+    // Doc ID = UID (not email) to avoid encoding issues
+    match /clientes/{uid} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == uid);
+      allow create, update: if isAuthenticated() && request.auth.uid == uid;
+      allow delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isAdmin() || (isAuthenticated() && request.auth.uid == uid);
+      allow create, update: if isAuthenticated() && request.auth.uid == uid;
+      allow delete: if isAdmin();
+    }
+
+    // ─── tecnicos (legacy catalog) ────────────────────────────
+    match /tecnicos/{tecnicoId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /technicians/{technicianId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ─── tiposServicio (legacy catalog) ───────────────────────
+    match /tiposServicio/{tipoId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ─── servicios (legacy) ───────────────────────────────────
+    match /servicios/{servicioId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin();
+      allow update: if isAdmin() && isOwner(resource);
+      allow delete: if isAdmin() && isOwner(resource);
+    }
+
+    // ─── agenda (legacy) ──────────────────────────────────────
+    match /agenda/{tecnicoId}/{fecha}/{servicioId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // NEW COLLECTIONS — Unified Request Platform
+    // ═══════════════════════════════════════════════════════════
+
+    // ─── requests ─────────────────────────────────────────────
+    match /requests/{requestId} {
+      allow create: if isAuthenticated();
+      allow read: if isAdmin() || isRequestParticipant(resource);
+      allow update: if isAdmin() || isRequestParticipant(resource);
+      allow delete: if isAdmin();
+    }
+
+    match /solicitudes/{requestId} {
+      allow create: if isAuthenticated();
+      allow read: if isAdmin() || isLegacyRequestParticipant(resource);
+      allow update: if isAdmin() || isLegacyRequestParticipant(resource);
+      allow delete: if isAdmin();
+    }
+
+    match /schedules/{requestId} {
+      allow create: if isAuthenticated();
+      allow read: if isAdmin() || isLegacyRequestParticipant(resource);
+      allow update: if isAdmin() || isLegacyRequestParticipant(resource);
+      allow delete: if isAdmin();
+    }
+
+    match /eventos/{eventId} {
+      allow read: if isAuthenticated();
+      allow create: if isAdmin()
+        && request.resource.data.tipo == 'personal'
+        && request.resource.data.adminId == request.auth.uid;
+      allow update, delete: if isAdmin() && resource.data.adminId == request.auth.uid;
+    }
+
+    match /app_settings/{docId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    match /public_settings/{docId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ─── chats ────────────────────────────────────────────────
+    // Messages subcollection
+    match /chats/{chatId}/messages/{messageId} {
+      allow create: if isAuthenticated();
+      allow read: if isAuthenticated();
+      allow update, delete: if false;
+    }
+
+    // Reader tracking subcollection
+    match /chats/{chatId}/readers/{userId} {
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+      allow write: if isAuthenticated() && request.auth.uid == userId;
+    }
+  }
+}
