@@ -18,6 +18,10 @@
     <link rel="stylesheet" href="theme-enhancements.css">
     <link rel="stylesheet" href="ios-calendar.css">
     <link rel="stylesheet" href="emergency-fix.css">
+    <!-- CAPA FINAL DE AUTORIDAD: nitidez nativa del fondo (imageData Base64),
+         tintes translúcidos claro/oscuro, Immersive Scroll y centrado estricto
+         del portal de acceso. Debe ir al final para ganar la cascada. -->
+    <link rel="stylesheet" href="hero-polish.css">
     <!-- Preload critical above-the-fold images for faster LCP -->
     <link rel="preload" as="image" href="logo.png">
 </head>
@@ -930,6 +934,10 @@
     </div>
     
     <script src="main.js"></script>
+    <!-- Motor de nitidez (imageData Base64) + Immersive Scroll.
+         Va ANTES de hero-flyer.js para que el motor ya exista cuando el flyer
+         se resuelva, y expone window.SIDPHero.applyBackground(). -->
+    <script defer src="js/hero-immersive.js"></script>
     <script type="module" src="js/hero-flyer.js"></script>
     <script type="module" src="js/client-panel.js"></script>
     <script type="module" src="js/admin-bootstrap.js"></script>

@@ -1440,13 +1440,15 @@ body.app-open #app .scheduler-nav-next:hover {
   --hero-fade-bottom: #f6f7f9;
   --hero-text: #111114;
   --hero-muted: rgba(17, 17, 20, 0.72);
-  --hero-overlay-top: rgba(255, 255, 255, 0.68);
-  --hero-overlay-mid: rgba(255, 255, 255, 0.28);
-  --hero-overlay-low: rgba(246, 247, 249, 0.78);
-  --hero-side-overlay: linear-gradient(90deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.34) 44%, rgba(255, 255, 255, 0.08) 100%);
+  /* Tinte translúcido (0.30–0.45): la foto debe seguir viva y visible */
+  --hero-overlay-top: rgba(255, 255, 255, 0.34);
+  --hero-overlay-mid: rgba(255, 255, 255, 0.20);
+  --hero-overlay-low: rgba(246, 247, 249, 0.30);
+  --hero-side-overlay: linear-gradient(90deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.24) 36%, rgba(255, 255, 255, 0.06) 68%, rgba(255, 255, 255, 0) 100%);
   --hero-flyer-bg-image: linear-gradient(135deg, #f7f8fb 0%, #e9eaee 52%, #ffffff 100%);
   --hero-flyer-bg-position: center;
-  --hero-flyer-bg-size: contain;
+  /* `contain` provocaba letterboxing/estiramiento difuso: siempre `cover` */
+  --hero-flyer-bg-size: cover;
   --hero-card: rgba(255, 255, 255, 0.58);
   --hero-card-border: rgba(255, 255, 255, 0.76);
 }
@@ -1455,10 +1457,11 @@ body.app-open #app .scheduler-nav-next:hover {
   --hero-fade-bottom: #080810;
   --hero-text: #ffffff;
   --hero-muted: rgba(255, 255, 255, 0.76);
-  --hero-overlay-top: rgba(0, 0, 0, 0.38);
-  --hero-overlay-mid: rgba(0, 0, 0, 0.28);
-  --hero-overlay-low: rgba(8, 8, 16, 0.86);
-  --hero-side-overlay: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.42) 44%, rgba(0, 0, 0, 0.12) 100%);
+  /* Modo oscuro: tinte negro translúcido de referencia rgba(0,0,0,0.4) */
+  --hero-overlay-top: rgba(0, 0, 0, 0.40);
+  --hero-overlay-mid: rgba(0, 0, 0, 0.26);
+  --hero-overlay-low: rgba(0, 0, 0, 0.34);
+  --hero-side-overlay: linear-gradient(90deg, rgba(0, 0, 0, 0.46) 0%, rgba(0, 0, 0, 0.28) 36%, rgba(0, 0, 0, 0.08) 68%, rgba(0, 0, 0, 0) 100%);
   --hero-flyer-bg-image: linear-gradient(135deg, #111114 0%, #24242a 52%, #07070a 100%);
   --hero-card: rgba(255, 255, 255, 0.08);
   --hero-card-border: rgba(255, 255, 255, 0.16);
@@ -1481,8 +1484,11 @@ body.app-open #app .scheduler-nav-next:hover {
   background-position: center, center, var(--hero-flyer-bg-position) !important;
   background-size: cover, cover, var(--hero-flyer-bg-size) !important;
   background-repeat: no-repeat !important;
-  image-rendering: auto;
-  image-rendering: high-quality;
+  /* Nitidez nativa: sin suavizado que empeore la resolución original.
+     (hero-polish.css traslada estas capas a .hero::before para poder
+     escalarlas por GPU durante el Immersive Scroll.) */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
   transition:
     background-image 1000ms var(--premium-ease),
     background-color 650ms ease,
@@ -1490,12 +1496,15 @@ body.app-open #app .scheduler-nav-next:hover {
 }
 
 .hero.hero--has-flyer-bg {
-  animation: heroBackgroundReveal 1200ms var(--premium-ease) both !important;
+  /* Sin `filter`: animar saturate()/brightness() sobre la sección forzaba una
+     rasterización intermedia y la foto entraba visiblemente "comprimida".
+     El reveal ahora es un cross-fade de opacidad sobre .hero::before. */
+  animation: none !important;
 }
 
 @keyframes heroBackgroundReveal {
-  from { filter: saturate(0.96) brightness(0.98); }
-  to { filter: saturate(1) brightness(1); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .glass-hero-background,
@@ -1592,7 +1601,8 @@ body.app-open #app .scheduler-nav-next:hover {
   padding: 2rem !important;
   color: #ffffff !important;
   text-align: center !important;
-  background: linear-gradient(180deg, rgba(0, 0, 0, 0.62), rgba(0, 0, 0, 0.84)) !important;
+  /* Tinte ligero: el estado de carga no debe tapar la escena con negro 0.84 */
+  background: linear-gradient(180deg, rgba(0, 0, 0, 0.34), rgba(0, 0, 0, 0.44)) !important;
   animation: none !important;
 }
 
@@ -1660,7 +1670,10 @@ body.app-open #app .scheduler-nav-next:hover {
 
 @media (min-width: 1440px) {
   .hero {
-    --hero-flyer-bg-size: min(100vw, 2400px) auto;
+    /* Un tamaño en px ("min(100vw, 2400px) auto") deformaba la relación de
+       aspecto del flyer en monitores grandes. Siempre cover + center. */
+    --hero-flyer-bg-size: cover;
+    --hero-flyer-bg-position: center;
   }
 }
 
