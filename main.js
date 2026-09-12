@@ -141,16 +141,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     });
 
-    // Hero-specific parallax elements
-    const heroImage = document.querySelector('.hero__image');
-    const heroTitle = document.querySelector('.hero__title');
-    const heroSubtitle = document.querySelector('.hero__subtitle');
-    const heroCta = document.querySelector('.hero__cta-group');
-    const heroLabel = document.querySelector('.hero__label');
-    const gradientOrb1 = document.querySelector('.hero__gradient-orb--1');
-    const gradientOrb2 = document.querySelector('.hero__gradient-orb--2');
-    const bgGrid = document.querySelector('.hero__bg-grid');
-    const scrollIndicator = document.querySelector('.hero__scroll-indicator');
+    // ─── HERO: IMMERSIVE SCROLL ────────────────────────────────────────
+    // El parallax del hero ya no se escribe aquí con estilos inline: esos
+    // valores quedaban anulados por `.reveal-element.revealed { opacity: 1
+    // !important; transform: translateY(0) !important }` de emergency-fix.css,
+    // de modo que el efecto estaba muerto. Ahora todo el estado del hero lo
+    // calcula js/hero-immersive.js sobre variables CSS (--hero-ui-progress,
+    // --hero-bg-scale, --hero-bg-shift, --hero-tint) que SÍ se consumen dentro
+    // de las declaraciones !important, y las curvas largas viven en
+    // hero-polish.css. Aquí sólo se le cede el turno en cada frame.
+    function driveHeroImmersive() {
+        if (window.SIDPHero && typeof window.SIDPHero.sync === 'function') {
+            window.SIDPHero.sync(false);
+        }
+    }
 
     // All section headers for scroll-driven animations
     const sectionHeaders = document.querySelectorAll('.section__header');
@@ -159,55 +163,11 @@ document.addEventListener('DOMContentLoaded', () => {
     function handleScrollAnimations() {
         const scrollY = window.scrollY;
         const vh = window.innerHeight;
-        const scrollPercent = scrollY / (document.body.scrollHeight - vh);
+        // (scrollPercent eliminado: no se usaba y leía document.body.scrollHeight
+        //  en cada frame, forzando un reflujo de layout en pleno scroll.)
 
-        // ─── HERO PARALLAX & FOCUS MODE (Apple-style scroll focus) ───
-        const heroSection = document.getElementById('hero');
-        if (heroSection) {
-            if (scrollY > 30) {
-                heroSection.classList.add('hero--focus-mode');
-            } else {
-                heroSection.classList.remove('hero--focus-mode');
-            }
-        }
-
-        if (scrollY < vh * 1.5) {
-            const heroProgress = scrollY / vh;
-
-            if (heroImage) {
-                heroImage.style.transform = `scale(${1 + heroProgress * 0.1}) translateY(${scrollY * 0.12}px)`;
-            }
-            if (heroTitle) {
-                heroTitle.style.transform = `translateY(${scrollY * -0.08}px)`;
-                heroTitle.style.opacity = Math.max(0, 1 - heroProgress * 0.8);
-            }
-            if (heroSubtitle) {
-                heroSubtitle.style.transform = `translateY(${scrollY * -0.05}px)`;
-                heroSubtitle.style.opacity = Math.max(0, 1 - heroProgress * 0.9);
-            }
-            if (heroCta) {
-                heroCta.style.transform = `translateY(${scrollY * -0.03}px)`;
-                heroCta.style.opacity = Math.max(0, 1 - heroProgress * 1.0);
-            }
-            if (heroLabel) {
-                heroLabel.style.transform = `translateY(${scrollY * -0.12}px)`;
-                heroLabel.style.opacity = Math.max(0, 1 - heroProgress * 0.7);
-            }
-            if (gradientOrb1) {
-                gradientOrb1.style.transform = `translateY(${scrollY * 0.15}px) translateX(${scrollY * 0.05}px) scale(${1 + heroProgress * 0.3})`;
-            }
-            if (gradientOrb2) {
-                gradientOrb2.style.transform = `translateY(${-scrollY * 0.1}px) translateX(${-scrollY * 0.03}px) scale(${1 + heroProgress * 0.2})`;
-            }
-            if (bgGrid) {
-                bgGrid.style.transform = `translateY(${scrollY * 0.05}px) scale(${1 + heroProgress * 0.05})`;
-                bgGrid.style.opacity = Math.max(0.3, 1 - heroProgress * 0.7);
-            }
-            if (scrollIndicator) {
-                scrollIndicator.style.opacity = Math.max(0, 1 - heroProgress * 3);
-                scrollIndicator.style.transform = `translateX(-50%) translateY(${scrollY * 0.3}px)`;
-            }
-        }
+        // ─── HERO — Immersive Scroll (delegado al motor dedicado) ───
+        driveHeroImmersive();
 
         // ─── REGISTERED PARALLAX ELEMENTS ───
         parallaxElements.forEach(({ el, speed, rotate, scale, opacity }) => {

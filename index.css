@@ -5586,9 +5586,26 @@ html.theme-transition *::after {
 .portal-cta p {
     font-size: 0.92rem;
     opacity: 0.65;
-    margin: 0;
     line-height: 1.55;
-    max-width: 300px;
+    /* Centrado simétrico: ancho de lectura cómodo y márgenes automáticos */
+    width: 100%;
+    max-width: 34rem;
+    margin: 0 auto;
+    padding: 0;
+    text-align: center;
+}
+
+.portal-cta h4,
+.portal-cta__title {
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+}
+
+.portal-cta__icon {
+    margin-left: auto;
+    margin-right: auto;
 }
 
 /* ─── Admin badge ──────────────────────────────────────────── */
@@ -7001,7 +7018,13 @@ html.theme-transition *::after {
 }
 
 .portal-cta--access {
-    align-items: stretch;
+    /* `stretch` era la causa del desfase: los hijos se anclaban al borde
+       izquierdo del panel en vez de centrarse sobre el eje vertical. */
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .portal-access-actions {
@@ -7009,10 +7032,15 @@ html.theme-transition *::after {
     gap: 10px;
     width: 100%;
     margin-top: 12px;
+    margin-left: auto;
+    margin-right: auto;
+    justify-items: center;
 }
 
 .portal-access-btn {
     width: 100%;
+    margin-left: auto;
+    margin-right: auto;
     justify-content: center;
 }
 
@@ -8903,9 +8931,13 @@ button[class*="btn"]:active {
 
 @media (max-width: 1024px) {
     .hero {
+        /* Antes imponía rgba(0,0,0,0.52)/0.42 también en Modo Claro, velando la
+           foto por completo. Ahora usa los tokens translúcidos de cada tema. */
         background-image:
-            linear-gradient(180deg, rgba(0, 0, 0, 0.52) 0%, rgba(0, 0, 0, 0.42) 48%, var(--hero-fade-bottom) 100%),
+            linear-gradient(180deg, var(--hero-overlay-top) 0%, var(--hero-overlay-mid) 48%, var(--hero-overlay-low) 78%, var(--hero-fade-bottom) 100%),
             var(--hero-flyer-bg-image);
+        background-size: cover, var(--hero-flyer-bg-size);
+        background-position: center, var(--hero-flyer-bg-position);
     }
 
     .hero__content {
@@ -8982,12 +9014,14 @@ button[class*="btn"]:active {
     --hero-fade-bottom: #f6f7f9;
     --hero-text: #111114;
     --hero-muted: rgba(17, 17, 20, 0.72);
-    --hero-overlay-top: rgba(255, 255, 255, 0.68);
-    --hero-overlay-mid: rgba(255, 255, 255, 0.28);
-    --hero-overlay-low: rgba(246, 247, 249, 0.78);
-    --hero-side-overlay: linear-gradient(90deg, rgba(255, 255, 255, 0.82) 0%, rgba(255, 255, 255, 0.34) 44%, rgba(255, 255, 255, 0.08) 100%);
+    /* Tinte translúcido (0.20–0.45): la imagen de fondo queda viva y visible */
+    --hero-overlay-top: rgba(255, 255, 255, 0.34);
+    --hero-overlay-mid: rgba(255, 255, 255, 0.20);
+    --hero-overlay-low: rgba(246, 247, 249, 0.30);
+    --hero-side-overlay: linear-gradient(90deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.24) 36%, rgba(255, 255, 255, 0.06) 68%, rgba(255, 255, 255, 0) 100%);
     --hero-flyer-bg-image: linear-gradient(135deg, #f7f8fb 0%, #e9eaee 52%, #ffffff 100%);
-    --hero-flyer-bg-size: contain;
+    /* `contain` dejaba bandas vacías y estiraba el arte: siempre `cover` */
+    --hero-flyer-bg-size: cover;
     --hero-flyer-bg-position: center;
     --hero-card: rgba(255, 255, 255, 0.58);
     --hero-card-border: rgba(255, 255, 255, 0.76);
@@ -8997,10 +9031,11 @@ button[class*="btn"]:active {
     --hero-fade-bottom: #080810;
     --hero-text: #ffffff;
     --hero-muted: rgba(255, 255, 255, 0.76);
-    --hero-overlay-top: rgba(0, 0, 0, 0.38);
-    --hero-overlay-mid: rgba(0, 0, 0, 0.28);
-    --hero-overlay-low: rgba(8, 8, 16, 0.86);
-    --hero-side-overlay: linear-gradient(90deg, rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.42) 44%, rgba(0, 0, 0, 0.12) 100%);
+    /* Modo oscuro: negro translúcido, referencia rgba(0,0,0,0.4) */
+    --hero-overlay-top: rgba(0, 0, 0, 0.40);
+    --hero-overlay-mid: rgba(0, 0, 0, 0.26);
+    --hero-overlay-low: rgba(0, 0, 0, 0.34);
+    --hero-side-overlay: linear-gradient(90deg, rgba(0, 0, 0, 0.46) 0%, rgba(0, 0, 0, 0.28) 36%, rgba(0, 0, 0, 0.08) 68%, rgba(0, 0, 0, 0) 100%);
     --hero-flyer-bg-image: linear-gradient(135deg, #111114 0%, #24242a 52%, #07070a 100%);
     --hero-card: rgba(255, 255, 255, 0.08);
     --hero-card-border: rgba(255, 255, 255, 0.16);
@@ -9032,15 +9067,18 @@ button[class*="btn"]:active {
 }
 
 .hero.hero--has-flyer-bg {
-    animation: heroBackgroundReveal 1200ms var(--premium-ease) both;
+    /* El reveal de la foto se hace con opacidad sobre .hero::before (ver
+       hero-polish.css). Animar `filter` sobre la sección completa obligaba al
+       navegador a rasterizar la capa y el Base64 entraba con aspecto difuso. */
+    animation: none;
 }
 
 @keyframes heroBackgroundReveal {
     from {
-        filter: saturate(0.96) brightness(0.98);
+        opacity: 0;
     }
     to {
-        filter: saturate(1) brightness(1);
+        opacity: 1;
     }
 }
 
@@ -9207,21 +9245,50 @@ button[class*="btn"]:active {
     image-rendering: crisp-edges !important;
 }
 
-/* ── Apple-Style Hero Focus Mode ── */
+/* ── Immersive Scroll (Apple-style) ──────────────────────────────────────
+   Sustituye al antiguo "Focus Mode" binario, que saltaba de golpe a los 30px
+   de scroll con opacity:0 !important (y que además quedaba anulado por la
+   cascada de .reveal-element.revealed, así que nunca llegaba a verse).
+
+   Ahora el desvanecido es continuo y lo gobierna --hero-ui-progress, que
+   escribe js/hero-immersive.js en cada frame. Las curvas largas (760ms+)
+   viven en hero-polish.css.                                        */
 .hero__text,
 .hero__visual,
 .hero__scroll-indicator,
 .hero__latest-ig {
-    transition: opacity 550ms var(--premium-ease), transform 550ms var(--premium-ease);
+    transition:
+        opacity 760ms cubic-bezier(0.22, 1, 0.36, 1),
+        transform 900ms cubic-bezier(0.22, 1, 0.36, 1);
     will-change: opacity, transform;
 }
 
-.hero--focus-mode .hero__text,
-.hero--focus-mode .hero__visual,
-.hero--focus-mode .hero__scroll-indicator,
-.hero--focus-mode .hero__latest-ig {
-    opacity: 0 !important;
-    transform: translateY(-28px) scale(0.97) !important;
-    pointer-events: none !important;
+/* Los translate SUMAN el desplazamiento de reposo (--hero-rest-*, definido en
+   hero-polish.css) para que el primer píxel de scroll no produzca un salto. */
+.hero--immersive .hero__text {
+    opacity: calc(1 - (var(--hero-ui-progress, 0) * 1.32));
+    transform:
+        translate3d(0, calc(var(--hero-rest-text, 0px) + (var(--hero-ui-progress, 0) * -58px)), 0)
+        scale(calc(1 - (var(--hero-ui-progress, 0) * 0.045)));
+}
+
+.hero--immersive .hero__visual {
+    opacity: calc(1 - (var(--hero-ui-progress, 0) * 1.12));
+    transform:
+        translate3d(0, calc(var(--hero-rest-visual, 0px) + (var(--hero-ui-progress, 0) * -34px)), 0)
+        scale(calc(1 - (var(--hero-ui-progress, 0) * 0.03)));
+}
+
+.hero--immersive .hero__scroll-indicator {
+    opacity: calc(1 - (var(--hero-ui-progress, 0) * 3));
+    /* Se conserva el translateX(-50%) que centra el indicador */
+    transform: translate3d(-50%, calc(var(--hero-ui-progress, 0) * 26px), 0);
+}
+
+.hero--ui-dismissed .hero__text,
+.hero--ui-dismissed .hero__visual,
+.hero--ui-dismissed .hero__scroll-indicator,
+.hero--ui-dismissed .hero__latest-ig {
+    pointer-events: none;
 }
 

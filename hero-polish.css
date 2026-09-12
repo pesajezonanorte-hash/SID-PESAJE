@@ -1,0 +1,741 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   SID PESAJE — HERO POLISH  ·  CAPA FINAL DE AUTORIDAD
+   ───────────────────────────────────────────────────────────────────────────
+   Se carga AL FINAL del <head> (después de emergency-fix.css) para ganar la
+   cascada sin guerras de !important. Define:
+
+     1. Nitidez nativa del fondo (imageData Base64 → cover/center/crisp)
+     2. Capa de transparencia inteligente (Claro 0.30–0.45 / Oscuro 0.40)
+     3. Animación "Immersive Scroll" (opacity + translateY + expansión)
+     4. Centrado estricto del portal de acceso / login
+     5. Curvas Apple extendidas a toda la página (700ms+)
+
+   Convención: los selectores críticos usan `.hero#hero` (especificidad 1,1,0)
+   para superar `:root:not([data-theme="dark"]) .hero` (0,3,0) de
+   emergency-fix.css sin necesitar !important en cada declaración.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   1. TOKENS DE MOVIMIENTO — Curvas y duraciones Apple
+   ───────────────────────────────────────────────────────────────────────── */
+:root {
+    /* Curvas: salida exponencial suave (el "resorte amortiguado" de Apple) */
+    --sidp-ease-immersive: cubic-bezier(0.22, 1, 0.36, 1);
+    --sidp-ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
+    --sidp-ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+    --sidp-ease-spring: cubic-bezier(0.34, 1.32, 0.44, 1);
+
+    /* Duraciones: >= 700ms para movimientos de página, micro-interacción ágil */
+    --sidp-dur-hero-ui: 760ms;
+    --sidp-dur-hero-bg: 920ms;
+    --sidp-dur-page: 720ms;
+    --sidp-dur-micro: 340ms;
+
+    /* Estado del scroll inmersivo (lo escribe js/hero-immersive.js) */
+    --hero-ui-progress: 0;   /* 0 → 1 a lo largo del primer viewport        */
+    --hero-bg-scale: 1;      /* expansión limpia de la foto                 */
+    --hero-bg-shift: 0px;    /* parallax vertical sutil                     */
+    --hero-tint: 1;          /* 1 → 0.6: el tinte se levanta al salir la UI */
+
+    /* Desplazamientos de REPOSO que ya aplica emergency-fix.css. El scroll
+       inmersivo debe SUMARSE a ellos: si los sustituyera, el primer píxel de
+       scroll produciría un salto de ~40px en la composición del hero. */
+    --hero-rest-text: clamp(1.5rem, 5vh, 4rem);
+    --hero-rest-visual: clamp(1rem, 4vh, 3rem);
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   2. CAPA DE UTILIDADES — faltaba por completo en el proyecto
+      El markup del portal usa clases tipo Tailwind que NO estaban definidas
+      en ningún CSS (por eso el bloque quedaba desfasado a la izquierda).
+   ───────────────────────────────────────────────────────────────────────── */
+.flex            { display: flex; }
+.inline-flex     { display: inline-flex; }
+.flex-col        { flex-direction: column; }
+.flex-row        { flex-direction: row; }
+.flex-wrap       { flex-wrap: wrap; }
+.items-center    { align-items: center; }
+.items-start     { align-items: flex-start; }
+.justify-center  { justify-content: center; }
+.justify-between { justify-content: space-between; }
+.text-center     { text-align: center; }
+.text-left       { text-align: left; }
+.text-right      { text-align: right; }
+.mx-auto         { margin-left: auto; margin-right: auto; }
+.my-auto         { margin-top: auto; margin-bottom: auto; }
+.w-full          { width: 100%; }
+.h-full          { height: 100%; }
+.text-white      { color: #ffffff; }
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3. NITIDEZ NATIVA DEL FONDO  ·  High-Definition Background Layer
+   ─────────────────────────────────────────────────────────────────────────
+   La foto se mueve a `.hero::before` para poder ESCALARLA con transform
+   (composición GPU) en vez de animar background-size. Así:
+     · no hay re-muestreo difuso del JPEG/PNG en Base64,
+     · no hay `filter` sobre la sección completa (causa real del aspecto
+       "apagado/comprimido" del reveal anterior),
+     · `cover` + `center` garantizan cero estiramiento y cero letterboxing.
+   ───────────────────────────────────────────────────────────────────────── */
+.hero#hero {
+    /* La foto ya no vive en el fondo del section: vive en ::before */
+    background-image: none !important;
+    background-color: var(--hero-fade-bottom) !important;
+    /* Nunca más `contain` ni tamaños en px que deforman la relación de aspecto */
+    --hero-flyer-bg-size: cover !important;
+    --hero-flyer-bg-position: center !important;
+
+    /* ── "Imagen completa arriba → inmersiva al bajar" ──────────────────
+       k = factor con el que el flyer ENCAJADO (contain, sin recorte) se
+       convierte exactamente en cover. Lo escribe js/hero-immersive.js a
+       partir de las dimensiones reales del arte y de la caja del hero:
+           k = max(W/nw, H/nh) / min(W/nw, H/nh)   (≥ 1)
+       Con scroll 0 → scale(1) el flyer se ve ENTERO; al bajar, scale(k)
+       hace que ese mismo flyer recortado coincida píxel a píxel con el
+       fondo cover del scroll inmersivo. Sin cortes secos, sin doble imagen. */
+    --hero-complete-k: 1;
+    --hero-complete-scale: calc(1 + (var(--hero-ui-progress, 0) * (var(--hero-complete-k, 1) - 1)));
+}
+
+.hero#hero::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+
+    /* ── Capa FOTO COVER (estado inmersivo, al bajar) ──────────────────
+       SÓLO la fotografía: los tintes de legibilidad viven ahora en ::after
+       (por encima del flyer completo), para que el flyer ENCAJADO que se ve
+       arriba también reciba el overlay sutil y el texto siga siendo legible.
+
+       Opacidad 0 con scroll 0 (arriba manda el flyer completo) → 1 al bajar
+       (fondo cover inmersivo). Es opacidad pura: propiedad compuesta, cero
+       repintado por frame. */
+    background-image: var(--hero-flyer-bg-image);
+    background-position: var(--hero-flyer-bg-position);
+    background-size: var(--hero-flyer-bg-size);
+    background-repeat: no-repeat;
+
+    /* ── NITIDEZ NATIVA: resolución original en Retina y estándar ──
+       -webkit-optimize-contrast → WebKit/Blink conserva el contraste del panel.
+       crisp-edges               → fallback estándar (Firefox) sin suavizado. */
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+
+    /* Expansión visual limpia durante el Immersive Scroll.
+       translateZ(0) promueve la capa a GPU: el navegador rasteriza la foto UNA
+       vez a resolución nativa y la composta, en vez de re-muestrearla por frame
+       (que es lo que producía el aspecto difuso/comprimido). */
+    transform:
+        scale3d(var(--hero-bg-scale), var(--hero-bg-scale), 1)
+        translate3d(0, var(--hero-bg-shift), 0);
+    transform-origin: 50% 44%;
+    will-change: transform;
+
+    /* Arriba (scroll 0) está apagada: lo que se ve es el flyer COMPLETO y el
+       relleno ambiental. Al bajar aparece el cover inmersivo. Cross-fade de
+       opacidad puro — nunca filter, que desenfoca. */
+    opacity: calc(var(--hero-ui-progress, 0) * 1.08);
+
+    /* Sólo se transicionan propiedades COMPUESTAS (transform/opacity).
+       Transicionar `background-image` obligaría a repintar los degradados de
+       una capa a pantalla completa en cada frame: justo lo contrario de la
+       fluidez que se busca. El fundido de la foto lo hace heroPhotoReveal. */
+    transition:
+        transform var(--sidp-dur-hero-bg) var(--sidp-ease-immersive),
+        opacity 900ms var(--sidp-ease-soft);
+}
+
+/* ── image-rendering ADAPTATIVO ──────────────────────────────────────────
+   Por defecto: nitidez nativa (crisp) cuando el arte cubre el lienzo.
+
+   Pero `crisp-edges` sobre una fuente que se está AMPLIANDO (p. ej. un flyer
+   de 200×200 u 800×800 estirado a un hero de 1920–3840px) produce dientes de
+   sierra y bordes dentados: exactamente lo contrario de "mayor calidad".
+   js/hero-immersive.js mide el factor de ampliación real y agrega
+   .hero--bg-upscaled cuando hace falta ampliar, para que en ese caso gane el
+   remuestreo suave del navegador, que es lo que mejor se ve con fotografías.
+
+   En cuanto se publique un flyer de >= 1920px, la clase desaparece sola y
+   vuelve a regir la nitidez crisp.                                  */
+.hero#hero.hero--bg-upscaled::before {
+    image-rendering: auto;
+    image-rendering: high-quality;
+}
+
+/* ── Capa de TINTES (::after) — legibilidad sobre cualquier foto ──────────
+   Antes los tintes vivían apilados DENTRO del background de ::before, encima
+   de la foto. Eso impedía tener un flyer ENCAJADO nítido por debajo con su
+   propio overlay. Ahora los tintes son una capa propia, POR ENCIMA de las dos
+   capas de foto (ambient + flyer completo) y POR DEBAJO del texto
+   (.hero__content z-index 4), con pointer-events: none.
+
+   Modo claro: blanco/gris translúcido (0.3–0.5, como pidió el usuario).
+   Modo oscuro: el mismo bloque redefinido con negro rgba(0,0,0,0.4).       */
+.hero#hero::after {
+    inset: 0 !important;
+    height: auto !important;
+    z-index: 3 !important;
+    pointer-events: none;
+    background-image:
+        linear-gradient(180deg,
+            rgba(255, 255, 255, calc(0.34 * var(--hero-tint, 1))) 0%,
+            rgba(255, 255, 255, calc(0.20 * var(--hero-tint, 1))) 40%,
+            rgba(246, 247, 249, calc(0.30 * var(--hero-tint, 1))) 74%,
+            rgba(246, 247, 249, 0) 96%),
+        radial-gradient(120% 88% at 18% 58%,
+            rgba(255, 255, 255, calc(0.30 * var(--hero-tint, 1))) 0%,
+            rgba(255, 255, 255, calc(0.14 * var(--hero-tint, 1))) 42%,
+            rgba(255, 255, 255, 0) 74%),
+        linear-gradient(90deg,
+            rgba(255, 255, 255, calc(0.45 * var(--hero-tint, 1))) 0%,
+            rgba(255, 255, 255, calc(0.24 * var(--hero-tint, 1))) 36%,
+            rgba(255, 255, 255, calc(0.06 * var(--hero-tint, 1))) 68%,
+            rgba(255, 255, 255, 0) 100%),
+        /* Disolución inferior hacia el resto de la página (anclada abajo) */
+        linear-gradient(180deg, transparent 0%, var(--hero-fade-bottom) 96%);
+    background-position: center, center, center, left bottom;
+    background-size: cover, cover, cover, 100% 22vh;
+    background-repeat: no-repeat;
+}
+
+/* Modo Oscuro: tinte negro translúcido — rgba(0,0,0,0.4) como referencia */
+:root[data-theme="dark"] .hero#hero::after {
+    background-image:
+        linear-gradient(180deg,
+            rgba(0, 0, 0, calc(0.40 * var(--hero-tint, 1))) 0%,
+            rgba(0, 0, 0, calc(0.26 * var(--hero-tint, 1))) 40%,
+            rgba(0, 0, 0, calc(0.34 * var(--hero-tint, 1))) 74%,
+            rgba(0, 0, 0, 0) 96%),
+        radial-gradient(120% 88% at 18% 58%,
+            rgba(0, 0, 0, calc(0.34 * var(--hero-tint, 1))) 0%,
+            rgba(0, 0, 0, calc(0.16 * var(--hero-tint, 1))) 42%,
+            rgba(0, 0, 0, 0) 74%),
+        linear-gradient(90deg,
+            rgba(0, 0, 0, calc(0.46 * var(--hero-tint, 1))) 0%,
+            rgba(0, 0, 0, calc(0.28 * var(--hero-tint, 1))) 36%,
+            rgba(0, 0, 0, calc(0.08 * var(--hero-tint, 1))) 68%,
+            rgba(0, 0, 0, 0) 100%),
+        linear-gradient(180deg, transparent 0%, var(--hero-fade-bottom) 96%);
+    background-position: center, center, center, left bottom;
+    background-size: cover, cover, cover, 100% 22vh;
+    background-repeat: no-repeat;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   3b. CAPAS DEL FLYER — "imagen completa arriba, inmersiva al bajar"
+   ─────────────────────────────────────────────────────────────────────────
+   .hero-flyer           grupo absoluto que alberga las dos capas de foto.
+   .hero-flyer::before   AMBIENTE: el mismo flyer en cover, desenfocado,
+                         rellena los laterales que deja el encaje contain.
+                         Se apaga al bajar.
+   .hero-flyer__img      FLYER COMPLETO: object-fit contain → se ve ENTERO,
+                         sin un solo píxel recortado, centrado y nítido.
+                         Al bajar escala exactamente hasta cover (×k).     */
+.hero#hero .hero-flyer {
+    display: block !important;      /* anula el atributo [hidden] del UA */
+    position: absolute !important;
+    inset: 0 !important;
+    z-index: 2 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    transform: none !important;     /* index.css lo desplaza 12px */
+    pointer-events: none !important;
+    overflow: hidden;
+}
+
+/* Ambiente desenfocado: blur CONSTANTE (se rasteriza una sola vez) y scale
+   para esconder el borde difuso. Sólo anima opacidad → compositor, sin
+   repaint por frame. Con scroll 0 llena los laterales del flyer encajado;
+   al bajar se apaga y deja mando al cover nítido de ::before. */
+.hero#hero .hero-flyer::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    background-image: var(--hero-flyer-bg-image);
+    background-position: var(--hero-flyer-bg-position);
+    background-size: cover;
+    background-repeat: no-repeat;
+    filter: blur(34px) saturate(1.06);
+    transform: scale3d(1.18, 1.18, 1);
+    transform-origin: 50% 50%;
+    opacity: 0;
+    will-change: opacity;
+}
+.hero#hero.hero--has-flyer-bg .hero-flyer::before {
+    opacity: calc(0.92 - (var(--hero-ui-progress, 0) * 1.05));
+}
+
+/* ── EL FLYER COMPLETO, SIN RECORTAR ─────────────────────────────────────
+   object-fit: contain garantiza que a scroll 0 se vea la imagen ENTERA (un
+   flyer cuadrado ya no pierde arriba y abajo contra `cover`). image-rendering
+   sigue la misma política adaptativa que ::before: crisp cuando el arte
+   cubre el lienzo, remuestreo suave cuando hay que ampliarlo. */
+.hero#hero .hero-flyer__img {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    object-position: center;
+    image-rendering: -webkit-optimize-contrast;
+    image-rendering: crisp-edges;
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
+    transform: scale3d(var(--hero-complete-scale, 1), var(--hero-complete-scale, 1), 1);
+    transform-origin: 50% 50%;
+    opacity: calc(1 - (var(--hero-ui-progress, 0) * 1.35));
+    will-change: transform, opacity;
+}
+/* Sólo se muestra cuando hay una fuente real decodificada (JS quita hidden). */
+.hero#hero.hero--has-flyer-bg .hero-flyer__img {
+    display: block !important;
+}
+.hero#hero.hero--bg-upscaled .hero-flyer__img {
+    image-rendering: auto;
+    image-rendering: high-quality;
+}
+
+/* La foto entra revelada (sin el viejo filtro saturate/brightness que la
+   rasterizaba a baja resolución durante la animación). El fundido corre sobre
+   el GRUPO .hero-flyer (ambient + flyer completo), NO sobre ::before: la capa
+   cover inmersiva se gobierna por --hero-ui-progress y arriba (scroll 0) debe
+   permanecer apagada para que mande el flyer entero. */
+.hero#hero.hero--has-flyer-bg { animation: none !important; }
+.hero#hero.hero--has-flyer-bg .hero-flyer {
+    animation: heroPhotoReveal 1100ms var(--sidp-ease-immersive) both;
+}
+@keyframes heroPhotoReveal {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+/* La disolución inferior hacia el resto del contenido ahora es la ÚLTIMA capa
+   del background de ::after (ver más arriba), anclada a left bottom con
+   background-size 100% 22vh. Ya no hace falta una regla aparte. */
+
+/* Legibilidad absoluta con tintes bajos: sombra de texto reforzada y
+   halo localizado, sin ensuciar la fotografía. */
+.hero#hero .hero__title,
+.hero#hero .hero__subtitle,
+.hero#hero .hero__label {
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+}
+:root:not([data-theme="dark"]) .hero#hero .hero__title,
+:root:not([data-theme="dark"]) .hero#hero .hero__subtitle,
+:root:not([data-theme="dark"]) .hero#hero .hero__label {
+    text-shadow:
+        0 1px 0 rgba(255, 255, 255, 0.55),
+        0 10px 34px rgba(255, 255, 255, 0.62) !important;
+}
+:root[data-theme="dark"] .hero#hero .hero__title,
+:root[data-theme="dark"] .hero#hero .hero__subtitle,
+:root[data-theme="dark"] .hero#hero .hero__label {
+    text-shadow:
+        0 1px 2px rgba(0, 0, 0, 0.55),
+        0 18px 54px rgba(0, 0, 0, 0.60) !important;
+}
+
+/* El skeleton de carga ya no tapa la escena con un negro 0.84 */
+.hero#hero .hero-flyer__skeleton {
+    background: linear-gradient(180deg,
+        rgba(0, 0, 0, calc(0.34 * var(--hero-tint, 1))),
+        rgba(0, 0, 0, calc(0.44 * var(--hero-tint, 1)))) !important;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   4. IMMERSIVE SCROLL — desvanecido armónico de la UI + expansión del fondo
+   ─────────────────────────────────────────────────────────────────────────
+   La UI se apaga progresivamente (no con un corte binario a los 30px como
+   hacía .hero--focus-mode, que además estaba anulado por la cascada).
+
+   · .hero--immersive  → se activa en cuanto empieza el deslizamiento, para
+                         no pisar la animación de entrada (.reveal-element).
+   · .hero--ui-dismissed → la UI ya se fue: se liberan los pointer-events.
+
+   Los valores salen de --hero-ui-progress y se suavizan con transiciones de
+   700ms+, de modo que el scroll se siente amortiguado/inercial.
+   ───────────────────────────────────────────────────────────────────────── */
+.hero#hero .hero__text,
+.hero#hero .hero__visual,
+.hero#hero .hero__scroll-indicator {
+    transition:
+        opacity var(--sidp-dur-hero-ui) var(--sidp-ease-immersive),
+        transform calc(var(--sidp-dur-hero-ui) + 140ms) var(--sidp-ease-immersive) !important;
+    will-change: opacity, transform;
+}
+
+/* IMPORTANTE: los translate SUMAN el desplazamiento de reposo
+   (--hero-rest-*) que ya aplica emergency-fix.css. Con progress = 0 la
+   expresión devuelve exactamente el valor de reposo, así que la transición
+   desde el estado inicial es continua: no hay salto al primer píxel de scroll.
+
+   NO se usa `filter: blur()` para la profundidad de campo: dentro de
+   .hero__text viven .btn--primary, .btn--ghost y .hero__latest-ig, y dentro de
+   .hero__visual vive .hero__stat — todos con `backdrop-filter`. Un `filter` en
+   el ancestro rompe el vidrio esmerilado de esos hijos (el backdrop queda
+   recortado al propio ancestro), justo lo contrario del acabado Apple. */
+.hero#hero.hero--immersive .hero__text {
+    opacity: calc(1 - (var(--hero-ui-progress, 0) * 1.32)) !important;
+    transform:
+        translate3d(0, calc(var(--hero-rest-text, 0px) + (var(--hero-ui-progress, 0) * -58px)), 0)
+        scale(calc(1 - (var(--hero-ui-progress, 0) * 0.045))) !important;
+}
+
+/* Tarjetas laterales (estadísticas): se desvanecen un paso después del texto,
+   con un desplazamiento propio para dar sensación de capas. */
+.hero#hero.hero--immersive .hero__visual {
+    opacity: calc(1 - (var(--hero-ui-progress, 0) * 1.12)) !important;
+    transform:
+        translate3d(0, calc(var(--hero-rest-visual, 0px) + (var(--hero-ui-progress, 0) * -34px)), 0)
+        scale(calc(1 - (var(--hero-ui-progress, 0) * 0.03))) !important;
+}
+
+/* El indicador de scroll es el primero en irse (peso 3x) */
+.hero#hero.hero--immersive .hero__scroll-indicator {
+    opacity: calc(1 - (var(--hero-ui-progress, 0) * 3)) !important;
+    /* Se conserva el translateX(-50%) que lo centra */
+    transform:
+        translate3d(-50%, calc(var(--hero-ui-progress, 0) * 26px), 0) !important;
+}
+
+/* La tarjeta de Instagram NO recibe transform propio: ya viaja con su padre
+   (.hero__text), que le da el movimiento de capa, y así se conserva intacto su
+   :hover { transform: translateY(-2px) }. */
+
+/* Cuando la UI ya se retiró por completo: fuera del flujo de punteros */
+.hero#hero.hero--ui-dismissed .hero__text,
+.hero#hero.hero--ui-dismissed .hero__visual,
+.hero#hero.hero--ui-dismissed .hero__scroll-indicator,
+.hero#hero.hero--ui-dismissed .hero__latest-ig {
+    pointer-events: none !important;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   5. CENTRADO ESTRICTO DEL PORTAL DE ACCESO / LOGIN
+   ─────────────────────────────────────────────────────────────────────────
+   Se elimina el desfase a la izquierda: simetría perfecta en el contenedor,
+   en el bloque de texto y en cada elemento interno (icono, título, copia y
+   botones). Vale tanto para el panel público (.portal-cta--access) como para
+   la tarjeta del SPA (#app .spa-login__card--portal).
+   ───────────────────────────────────────────────────────────────────────── */
+.portal-cta--access,
+#app .spa-login__card--portal {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;      /* anula el align-items: stretch heredado */
+    justify-content: center !important;
+    text-align: center !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: clamp(1.25rem, 4vw, 2.5rem) !important;
+    padding-right: clamp(1.25rem, 4vw, 2.5rem) !important;
+    box-sizing: border-box !important;
+}
+
+/* Todos los hijos se autocentran y nunca se desbordan */
+.portal-cta--access > *,
+#app .spa-login__card--portal > * {
+    margin-left: auto !important;
+    margin-right: auto !important;
+    max-width: 100% !important;
+    text-align: center !important;
+}
+
+.portal-cta--access .portal-cta__icon,
+#app .spa-login__card--portal .spa-login__icon,
+#app .spa-login__card--portal .spa-login__logo {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+}
+
+.portal-cta--access h4,
+.portal-cta--access p,
+#app .spa-login__card--portal h3,
+#app .spa-login__card--portal h4,
+#app .spa-login__card--portal p,
+#app .spa-login__eyebrow {
+    width: 100% !important;
+    max-width: 34rem !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    text-align: center !important;
+}
+
+/* Fila de acciones: centrada y con botones de ancho idéntico y simétrico */
+.portal-access-actions,
+#app .spa-login__options {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    max-width: 26rem !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    gap: 0.75rem !important;
+}
+
+.portal-access-btn,
+#app .spa-login__option {
+    width: 100% !important;
+    max-width: 26rem !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+}
+
+/* El overlay del SPA debe ocupar todo el ancho para que el centro real del
+   viewport coincida con el centro de la tarjeta */
+#app .spa-login {
+    width: 100% !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    padding-left: 1rem !important;
+    padding-right: 1rem !important;
+    box-sizing: border-box !important;
+}
+
+/* El contenedor padre tampoco debe empujar el bloque */
+.contact__form {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    text-align: center !important;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   6. FLUIDEZ APPLE EXTENDIDA A TODA LA PÁGINA (curvas 700ms+)
+   ─────────────────────────────────────────────────────────────────────────
+   Regla de oro: 700ms+ con curva de salida exponencial para los movimientos
+   de página (entradas, secciones, tema, overlays); micro-interacción ágil
+   para hover/pulsación, que si se alarga se siente pegajosa.
+   ───────────────────────────────────────────────────────────────────────── */
+html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+}
+
+.reveal-element,
+[data-reveal],
+[data-reveal-stagger] > *,
+.section__header,
+.section__title,
+.section__label,
+.section__subtitle {
+    transition-timing-function: var(--sidp-ease-immersive) !important;
+}
+
+/* Entradas y cambios de estado de gran superficie: 700ms+ en lo que construye
+   la continuidad (opacidad, sombras, bordes, fondos). El `transform` se queda
+   en 560ms a propósito: es la propiedad que responde al hover/pulsación, y a
+   720ms se siente pegajosa en vez de premium.
+   Sin `will-change` global aquí: promover decenas de tarjetas a capas de
+   composición permanentes castiga la memoria sin beneficio. */
+.product-card,
+.service-card,
+.about__card,
+.team-card,
+.award-card,
+.metric,
+.contact__info-card,
+.process-timeline,
+.contact__form,
+.portal-cta,
+.contact__map,
+.instagram-section {
+    transition:
+        transform 560ms var(--sidp-ease-immersive),
+        opacity var(--sidp-dur-page) var(--sidp-ease-immersive),
+        box-shadow var(--sidp-dur-page) var(--sidp-ease-soft),
+        border-color var(--sidp-dur-page) var(--sidp-ease-soft),
+        background-color var(--sidp-dur-page) var(--sidp-ease-soft) !important;
+}
+
+/* Navegación: aparición y cambio de estado con curva larga */
+.nav,
+.nav__link,
+.nav__logo,
+.nav__link--cta,
+.theme-toggle {
+    transition:
+        transform var(--sidp-dur-page) var(--sidp-ease-immersive),
+        opacity var(--sidp-dur-page) var(--sidp-ease-immersive),
+        background-color 520ms var(--sidp-ease-soft),
+        color 520ms var(--sidp-ease-soft),
+        box-shadow 520ms var(--sidp-ease-soft),
+        border-color 520ms var(--sidp-ease-soft) !important;
+}
+
+/* Micro-interacción: ágil pero con la misma firma de curva */
+.btn,
+.portal-access-btn,
+.form__input,
+.form__textarea,
+.hero-flyer__img {
+    transition:
+        transform var(--sidp-dur-micro) var(--sidp-ease-spring),
+        box-shadow 480ms var(--sidp-ease-soft),
+        background-color 480ms var(--sidp-ease-soft),
+        border-color 480ms var(--sidp-ease-soft),
+        color 480ms var(--sidp-ease-soft),
+        opacity 480ms var(--sidp-ease-soft) !important;
+}
+
+.btn:hover,
+.portal-access-btn:hover { transform: translateY(-2px); }
+.btn:active,
+.portal-access-btn:active { transform: translateY(0) scale(0.985); }
+
+/* Cambio de tema sin cortes */
+.theme-transition,
+.theme-transition * {
+    transition:
+        background-color 800ms var(--sidp-ease-soft),
+        color 800ms var(--sidp-ease-soft),
+        border-color 800ms var(--sidp-ease-soft),
+        box-shadow 800ms var(--sidp-ease-soft) !important;
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   7. RESPONSIVE — la foto siempre en cover, jamás estirada
+   ───────────────────────────────────────────────────────────────────────── */
+@media (min-width: 1440px) {
+    .hero#hero {
+        --hero-flyer-bg-size: cover !important;
+        --hero-flyer-bg-position: center !important;
+    }
+}
+
+@media (max-width: 1024px) {
+    /* En tablet/móvil el tinte lateral se convierte en vertical: el texto va
+       centrado y la foto sigue ocupando todo el ancho. */
+    .hero#hero::before {
+        background-image:
+            linear-gradient(180deg,
+                rgba(255, 255, 255, calc(0.36 * var(--hero-tint, 1))) 0%,
+                rgba(255, 255, 255, calc(0.24 * var(--hero-tint, 1))) 46%,
+                rgba(246, 247, 249, calc(0.40 * var(--hero-tint, 1))) 78%,
+                var(--hero-fade-bottom) 98%),
+            var(--hero-flyer-bg-image);
+        background-position: center, var(--hero-flyer-bg-position);
+        background-size: cover, var(--hero-flyer-bg-size);
+        transform-origin: 50% 40%;
+    }
+
+    :root[data-theme="dark"] .hero#hero::before {
+        background-image:
+            linear-gradient(180deg,
+                rgba(0, 0, 0, calc(0.42 * var(--hero-tint, 1))) 0%,
+                rgba(0, 0, 0, calc(0.28 * var(--hero-tint, 1))) 46%,
+                rgba(0, 0, 0, calc(0.38 * var(--hero-tint, 1))) 78%,
+                var(--hero-fade-bottom) 98%),
+            var(--hero-flyer-bg-image);
+    }
+
+    /* Recorrido más corto en tablet/móvil, pero igualmente SUMADO al reposo */
+    .hero#hero.hero--immersive .hero__text {
+        transform:
+            translate3d(0, calc(var(--hero-rest-text, 0px) + (var(--hero-ui-progress, 0) * -38px)), 0) !important;
+    }
+    .hero#hero.hero--immersive .hero__visual {
+        transform:
+            translate3d(0, calc(var(--hero-rest-visual, 0px) + (var(--hero-ui-progress, 0) * -28px)), 0) !important;
+    }
+}
+
+@media (max-width: 768px) {
+    /* emergency-fix.css anula el desplazamiento de reposo en móvil
+       (transform: none !important), así que el token debe acompañarlo:
+       de lo contrario el scroll inmersivo reintroduciría ese offset. */
+    :root {
+        --hero-rest-text: 0px;
+        --hero-rest-visual: 0px;
+    }
+
+    .hero#hero {
+        --hero-flyer-bg-size: cover !important;
+        --hero-flyer-bg-position: center !important;
+    }
+    .hero#hero.hero--immersive .hero__scroll-indicator {
+        opacity: calc(1 - (var(--hero-ui-progress, 0) * 4)) !important;
+    }
+}
+
+/* Pantallas Retina: se favorece el contraste nativo del panel */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 2dppx) {
+    .hero#hero::before {
+        image-rendering: -webkit-optimize-contrast;
+        image-rendering: crisp-edges;
+    }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+   8. ACCESIBILIDAD — movimiento reducido
+   ───────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+
+    .hero#hero::before {
+        transform: none !important;
+        transition: opacity 400ms linear !important;
+        animation: none !important;
+        /* Sin morph: el flyer completo manda siempre, así que el cover
+           inmersivo se apaga para no duplicar la imagen detrás. */
+        opacity: 0 !important;
+    }
+
+    /* Flyer completo ESTÁTICO: se ve entero, sin escala ni fundidos de capa. */
+    .hero#hero .hero-flyer {
+        animation: none !important;
+        opacity: 1 !important;
+        transform: none !important;
+    }
+    .hero#hero .hero-flyer::before,
+    .hero#hero .hero-flyer__img {
+        transform: none !important;
+        transition: none !important;
+        animation: none !important;
+        will-change: auto;
+    }
+    .hero#hero .hero-flyer::before { opacity: 0.5 !important; }
+    .hero#hero .hero-flyer__img { opacity: 1 !important; }
+
+    .hero#hero.hero--immersive .hero__text,
+    .hero#hero.hero--immersive .hero__visual,
+    .hero#hero.hero--immersive .hero__scroll-indicator,
+    .hero#hero.hero--immersive .hero__latest-ig {
+        transform: none !important;
+        transition: opacity 320ms linear !important;
+    }
+
+    .product-card, .service-card, .about__card, .team-card, .award-card,
+    .metric, .contact__info-card, .process-timeline, .contact__form,
+    .portal-cta, .contact__map, .instagram-section,
+    .nav, .nav__link, .nav__logo, .nav__link--cta, .theme-toggle,
+    .btn, .portal-access-btn {
+        transition-duration: 200ms !important;
+    }
+}
