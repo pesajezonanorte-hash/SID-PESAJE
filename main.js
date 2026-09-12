@@ -13,6 +13,876 @@ const initialTheme = savedTheme || (prefersDark ? 'dark' : 'light');
 const emergencyFixMode = document.documentElement.hasAttribute('data-emergency-fix');
 document.documentElement.setAttribute('data-theme', initialTheme);
 
+// ═══════════════════════════════════════════════════════
+// 0.8 PORTAL DE ACCESO — Firebase Auth (Cliente / Administrador)
+// ─────────────────────────────────────────────────────────────
+// FIX: los botones "Entrar como Cliente" / "Entrar como Administrador"
+// invocaban window.abrirPortalClientes(...) pero la función NO estaba
+// declarada en ningún archivo del proyecto, de modo que cada clic reventaba
+// con:  Uncaught TypeError: window.abrirPortalClientes is not a function
+//
+// Aquí se declara de forma explícita y global (ver window.abrirPortalClientes
+// más abajo) con toda la lógica de Firebase Auth: carga perezosa del SDK
+// compat, inicio de sesión por correo/contraseña y Google, alta de cliente,
+// resolución del rol contra Firestore (users/{uid}.role → admins/{email}) y
+// ruteo hacia /agenda?intent=<rol>.
+//
+// La UI reutiliza la convención .modal-overlay + .modal-content del sitio y la
+// extiende con body.sidp-portal-open: .modal-overlay.active es de lo poco que
+// emergency-fix.js/css deja interactivo (el resto de overlays position:fixed
+// reciben pointer-events:none en cada pasada, que corre cada 1 s).
+// ═══════════════════════════════════════════════════════
+const SIDP_PORTAL = (function initPortalAccess() {
+
+    /* ── Configuración del proyecto (mismo proyecto que firebase-messaging-sw.js) ── */
+    const FIREBASE_CONFIG = {
+        apiKey: 'AIzaSyAOraPD6LrhNXEqM0ClPEwZwPEWfVG1ZMk',
+        authDomain: 'sidpesaje.firebaseapp.com',
+        projectId: 'sidpesaje',
+        storageBucket: 'sidpesaje.firebasestorage.app',
+        messagingSenderId: '449735968404',
+        appId: '1:449735968404:web:8d103e1655e7cd76635681',
+        measurementId: 'G-5KX8TYL5JX'
+    };
+    const SDK_BASE = 'https://www.gstatic.com/firebasejs/10.8.0';
+    const SDK_FILES = ['firebase-app-compat.js', 'firebase-auth-compat.js', 'firebase-firestore-compat.js'];
+    const SDK_TIMEOUT = 9000;
+    const PORTAL_ROUTE = '/agenda';
+    const TAG = '[portal]';
+
+    const COPY = {
+        cliente: {
+            title: 'Portal de Clientes',
+            subtitle: 'Consulta tus pesajes, solicita servicios y sigue tus turnos.',
+            submit: 'Iniciar sesión',
+            allowRegister: true
+        },
+        admin: {
+            title: 'Portal de Administración',
+            subtitle: 'Acceso restringido al equipo técnico y administrativo de SID Pesaje.',
+            submit: 'Entrar como administrador',
+            allowRegister: false
+        }
+    };
+
+    /* ── Estado ─────────────────────────────────────────────────────── */
+    let sdkPromise = null;
+    let authListenerBound = false;
+    let ui = null;                 // referencias al modal (se construye una sola vez)
+    let activeIntent = 'cliente';
+    let lastTrigger = null;        // botón que abrió el portal (para devolverle el foco)
+    let lastAuth = { key: null, at: 0, role: null };
+    let busy = false;
+
+    /* ── Utilidades ─────────────────────────────────────────────────── */
+    const warn = (...args) => { try { console.warn(TAG, ...args); } catch (e) { /* noop */ } };
+
+    function h(tag, props, children) {
+        const el = document.createElement(tag);
+        Object.entries(props || {}).forEach(([key, value]) => {
+            if (value === null || value === undefined || value === false) return;
+            if (key === 'class') el.className = value;
+            else if (key === 'text') el.textContent = value;
+            else if (key === 'html') el.innerHTML = value;
+            else if (key.startsWith('on') && typeof value === 'function') el.addEventListener(key.slice(2), value);
+            else if (key === 'style' && typeof value === 'object') Object.assign(el.style, value);
+            else el.setAttribute(key, value === true ? '' : value);
+        });
+        (children || []).forEach(child => {
+            if (child === null || child === undefined || child === false) return;
+            el.appendChild(typeof child === 'string' ? document.createTextNode(child) : child);
+        });
+        return el;
+    }
+
+    function isOnline() {
+        return typeof navigator === 'undefined' || navigator.onLine !== false;
+    }
+
+    function normalizeIntent(raw) {
+        let value = raw;
+        /* Tolera que le pasen el evento en vez del rol. */
+        if (value && typeof value === 'object') {
+            const node = value.currentTarget || value.target;
+            value = node && typeof node.getAttribute === 'function'
+                ? node.getAttribute('data-portal-intent')
+                : null;
+        }
+        value = String(value || '').trim().toLowerCase();
+        return value.indexOf('admin') === 0 ? 'admin' : 'cliente';
+    }
+
+    /* ── Carga perezosa del SDK compat de Firebase ──────────────────── */
+    function loadScript(src, timeoutMs) {
+        return new Promise(resolve => {
+            try {
+                if (document.querySelector(`script[data-sidp-sdk="${src}"]`)) { resolve(true); return; }
+                let settled = false;
+                const finish = ok => {
+                    if (settled) return;
+                    settled = true;
+                    clearTimeout(timer);
+                    resolve(ok);
+                };
+                const script = document.createElement('script');
+                script.src = src;
+                script.async = true;
+                script.setAttribute('data-sidp-sdk', src);
+                script.onload = () => finish(true);
+                script.onerror = () => finish(false);
+                const timer = setTimeout(() => finish(false), timeoutMs);
+                (document.head || document.documentElement).appendChild(script);
+            } catch (err) {
+                warn('no se pudo inyectar el SDK', err && err.message);
+                resolve(false);
+            }
+        });
+    }
+
+    function initApp(fb) {
+        try {
+            const apps = fb.apps || [];
+            if (!apps.length) fb.initializeApp(FIREBASE_CONFIG);
+        } catch (err) {
+            /* duplicate-app: otra parte del sitio ya inicializó Firebase */
+        }
+        return fb;
+    }
+
+    function ensureFirebase() {
+        if (sdkPromise) return sdkPromise;
+        sdkPromise = (async () => {
+            try {
+                const existing = window.firebase;
+                if (existing && typeof existing.auth === 'function') return initApp(existing);
+
+                if (!isOnline()) {
+                    warn('sin conexión: el portal queda en modo invitado.');
+                    return null;
+                }
+                for (let i = 0; i < SDK_FILES.length; i++) {
+                    const ok = await loadScript(`${SDK_BASE}/${SDK_FILES[i]}`, SDK_TIMEOUT);
+                    if (!ok) {
+                        warn(`no se pudo cargar ${SDK_FILES[i]}; el portal queda en modo invitado.`);
+                        return null;
+                    }
+                }
+                if (!window.firebase || typeof window.firebase.auth !== 'function') {
+                    warn('el SDK cargó pero firebase.auth() no está disponible.');
+                    return null;
+                }
+                return initApp(window.firebase);
+            } catch (err) {
+                warn('fallo al inicializar Firebase:', err && err.message);
+                return null;
+            }
+        })();
+        return sdkPromise;
+    }
+
+    function bindAuthListener(fb) {
+        if (authListenerBound || !fb) return;
+        authListenerBound = true;
+        try {
+            fb.auth().onAuthStateChanged(user => {
+                if (user && ui && ui.overlay.classList.contains('active') && !busy) {
+                    onAuthenticated(user, activeIntent);
+                }
+            });
+        } catch (err) {
+            warn('onAuthStateChanged no disponible:', err && err.message);
+        }
+    }
+
+    /* ── Traducción de errores de Firebase Auth a español ───────────── */
+    function friendlyAuthError(err) {
+        const code = (err && (err.code || (err.message || '').match(/auth\/[a-z-]+/i)?.[0])) || '';
+        const map = {
+            'auth/invalid-email': 'El correo no tiene un formato válido.',
+            'auth/user-not-found': 'No existe una cuenta con ese correo.',
+            'auth/wrong-password': 'Contraseña incorrecta. Inténtalo de nuevo.',
+            'auth/invalid-credential': 'Credenciales inválidas. Verifica correo y contraseña.',
+            'auth/email-already-in-use': 'Ese correo ya está registrado. Inicia sesión.',
+            'auth/weak-password': 'La contraseña debe tener al menos 6 caracteres.',
+            'auth/too-many-requests': 'Demasiados intentos. Espera unos minutos y vuelve a probar.',
+            'auth/network-request-failed': 'No hay conexión con Firebase. Revisa tu red.',
+            'auth/popup-blocked': 'El navegador bloqueó la ventana de Google. Permite las ventanas emergentes.',
+            'auth/popup-closed-by-user': 'Cerraste la ventana de Google antes de terminar.',
+            'auth/cancelled-popup-request': 'Se canceló la solicitud de acceso con Google.',
+            'auth/operation-not-allowed': 'Este método de acceso no está habilitado en Firebase Console.',
+            'auth/unauthorized-domain': 'Este dominio no está autorizado en Firebase Auth.',
+            'auth/requires-recent-login': 'Por seguridad, vuelve a iniciar sesión.'
+        };
+        return map[code] || 'No pudimos completar el acceso. Revisa los datos e inténtalo de nuevo.';
+    }
+
+    /* ── Estilos del portal (se inyectan una sola vez) ──────────────── */
+    function injectStyles() {
+        if (document.getElementById('sidp-portal-styles')) return;
+        const style = document.createElement('style');
+        style.id = 'sidp-portal-styles';
+        style.textContent = `
+.sidp-portal.modal-overlay {
+    z-index: 100000 !important;
+    pointer-events: none;
+    background: rgba(8, 8, 12, 0.62);
+    -webkit-backdrop-filter: blur(6px);
+    backdrop-filter: blur(6px);
+    padding: 1rem;
+    box-sizing: border-box;
+}
+.sidp-portal.modal-overlay.active { pointer-events: auto !important; }
+body.sidp-portal-open { overflow: hidden; }
+body.sidp-portal-open #site-content,
+body.sidp-portal-open #app { pointer-events: none !important; }
+.sidp-portal .modal-content {
+    width: min(26rem, 92vw) !important;
+    max-width: min(26rem, 92vw) !important;
+    background: var(--surface, #ffffff) !important;
+    color: var(--on-surface, #1a1a1a) !important;
+    border: 1px solid var(--outline-variant, #e8e2de);
+    border-radius: 18px;
+    padding: clamp(1.25rem, 4vw, 1.75rem);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.35);
+    font-family: var(--font-body, 'Inter', sans-serif);
+    text-align: center;
+}
+.sidp-portal__close {
+    position: absolute; top: .6rem; right: .6rem;
+    width: 2rem; height: 2rem; border: 0; border-radius: 50%;
+    background: transparent; color: var(--on-surface-variant, #5a5755);
+    cursor: pointer; font-size: 1.1rem; line-height: 1;
+}
+.sidp-portal__close:hover { background: var(--surface-container, #f0edec); }
+.sidp-portal__badge {
+    display: inline-flex; align-items: center; gap: .4rem;
+    font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+    font-weight: 700; color: var(--primary, #cc0000);
+    background: rgba(204, 0, 0, 0.10);
+    background: color-mix(in srgb, var(--primary, #cc0000) 10%, transparent);
+    border: 1px solid rgba(204, 0, 0, 0.22);
+    border: 1px solid color-mix(in srgb, var(--primary, #cc0000) 22%, transparent);
+    padding: .3rem .6rem; border-radius: 999px;
+}
+.sidp-portal__title {
+    font-family: var(--font-display, 'Manrope', sans-serif);
+    font-size: clamp(1.2rem, 4vw, 1.45rem);
+    margin: .75rem 0 .35rem; line-height: 1.2;
+}
+.sidp-portal__subtitle {
+    font-size: .88rem; color: var(--on-surface-variant, #5a5755);
+    margin: 0 auto 1.1rem; max-width: 22rem; line-height: 1.5;
+}
+.sidp-portal__form { display: flex; flex-direction: column; gap: .65rem; text-align: left; }
+.sidp-portal__label {
+    font-size: .72rem; font-weight: 600; letter-spacing: .04em;
+    text-transform: uppercase; color: var(--on-surface-variant, #5a5755);
+    margin-bottom: .25rem; display: block;
+}
+.sidp-portal__input {
+    width: 100%; box-sizing: border-box;
+    padding: .7rem .85rem; font-size: .95rem;
+    color: var(--on-surface, #1a1a1a);
+    background: var(--surface-container-lowest, #ffffff);
+    border: 1px solid var(--outline, #d4ccc8); border-radius: 12px;
+    outline: none; transition: border-color .2s ease, box-shadow .2s ease;
+}
+.sidp-portal__input:focus {
+    border-color: var(--primary, #cc0000);
+    box-shadow: 0 0 0 3px rgba(204, 0, 0, 0.18);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary, #cc0000) 18%, transparent);
+}
+.sidp-portal__btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: .5rem;
+    width: 100%; padding: .8rem 1rem; margin-top: .25rem;
+    border: 0; border-radius: 12px; cursor: pointer;
+    font-family: var(--font-display, 'Manrope', sans-serif);
+    font-size: .95rem; font-weight: 700;
+    background: var(--primary, #cc0000); color: #fff;
+    transition: transform .18s var(--ease-out-expo, cubic-bezier(.16,1,.3,1)), filter .18s ease;
+}
+.sidp-portal__btn:hover { filter: brightness(1.08); }
+.sidp-portal__btn:active { transform: scale(.985); }
+.sidp-portal__btn:disabled { opacity: .6; cursor: progress; }
+.sidp-portal__btn--ghost {
+    background: transparent; color: var(--on-surface, #1a1a1a);
+    border: 1px solid var(--outline, #d4ccc8);
+}
+.sidp-portal__divider {
+    display: flex; align-items: center; gap: .6rem;
+    margin: .9rem 0 .2rem; color: var(--on-surface-variant, #5a5755); font-size: .72rem;
+}
+.sidp-portal__divider::before, .sidp-portal__divider::after {
+    content: ''; flex: 1; height: 1px; background: var(--outline-variant, #e8e2de);
+}
+.sidp-portal__status {
+    min-height: 1.2rem; margin: .8rem 0 0; font-size: .84rem; line-height: 1.45;
+    color: var(--on-surface-variant, #5a5755); text-align: center;
+}
+.sidp-portal__status[data-kind="error"] { color: #d92d20; font-weight: 600; }
+.sidp-portal__status[data-kind="success"] { color: #12805c; font-weight: 600; }
+.sidp-portal__status[data-kind="info"] { color: var(--on-surface-variant, #5a5755); }
+.sidp-portal__switch {
+    margin-top: .9rem; font-size: .84rem; color: var(--on-surface-variant, #5a5755);
+}
+.sidp-portal__switch button {
+    border: 0; background: none; padding: 0; cursor: pointer;
+    color: var(--primary, #cc0000); font-weight: 700; font-size: .84rem;
+    text-decoration: underline; text-underline-offset: 2px;
+}
+.sidp-portal__session { text-align: center; }
+.sidp-portal__avatar {
+    width: 3.25rem; height: 3.25rem; border-radius: 50%; margin: 0 auto .75rem;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(204, 0, 0, 0.12);
+    background: color-mix(in srgb, var(--primary, #cc0000) 12%, transparent);
+    color: var(--primary, #cc0000);
+    font-family: var(--font-display, 'Manrope', sans-serif); font-weight: 800; font-size: 1.2rem;
+}
+.sidp-portal__role {
+    display: inline-block; margin-top: .35rem; padding: .25rem .6rem; border-radius: 999px;
+    font-size: .72rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+    background: var(--surface-container, #f0edec); color: var(--on-surface-variant, #5a5755);
+}
+.sidp-portal__actions { display: flex; flex-direction: column; gap: .5rem; margin-top: 1.1rem; }
+.sidp-portal .sidp-portal__view[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) {
+    .sidp-portal.modal-overlay.active { pointer-events: auto !important; }
+body.sidp-portal-open { overflow: hidden; }
+body.sidp-portal-open #site-content,
+body.sidp-portal-open #app { pointer-events: none !important; }
+.sidp-portal .modal-content { animation: none !important; }
+}
+`;
+        (document.head || document.documentElement).appendChild(style);
+    }
+
+    /* ── Construcción del modal ─────────────────────────────────────── */
+    function buildModal() {
+        injectStyles();
+
+        const email = h('input', {
+            class: 'sidp-portal__input', type: 'email', id: 'sidpPortalEmail',
+            name: 'email', autocomplete: 'email', inputmode: 'email',
+            placeholder: 'tucorreo@empresa.com', required: true
+        });
+        const password = h('input', {
+            class: 'sidp-portal__input', type: 'password', id: 'sidpPortalPassword',
+            name: 'password', autocomplete: 'current-password',
+            placeholder: '••••••••', minlength: '6', required: true
+        });
+        const status = h('p', { class: 'sidp-portal__status', id: 'sidpPortalStatus', 'data-kind': 'info', role: 'status', 'aria-live': 'polite' });
+        const badge = h('span', { class: 'sidp-portal__badge', id: 'sidpPortalBadge' });
+        const title = h('h2', { class: 'sidp-portal__title', id: 'sidpPortalTitle' });
+        const subtitle = h('p', { class: 'sidp-portal__subtitle', id: 'sidpPortalSubtitle' });
+
+        const submit = h('button', { class: 'sidp-portal__btn', type: 'submit', id: 'sidpPortalSubmit' }, ['Iniciar sesión']);
+        const google = h('button', {
+            class: 'sidp-portal__btn sidp-portal__btn--ghost', type: 'button', id: 'sidpPortalGoogle',
+            onclick: () => signInWithGoogle()
+        }, ['Continuar con Google']);
+
+        const switchRow = h('div', { class: 'sidp-portal__switch', id: 'sidpPortalSwitchRow' });
+        const switchHint = h('span', { id: 'sidpPortalSwitchHint' }, ['¿Aún no tienes cuenta?']);
+        const switchBtn = h('button', {
+            type: 'button', id: 'sidpPortalSwitch',
+            onclick: () => setMode(mode === 'login' ? 'register' : 'login')
+        }, ['Crear cuenta']);
+
+        const form = h('form', {
+            class: 'sidp-portal__form', id: 'sidpPortalForm', novalidate: true,
+            onsubmit: evt => { evt.preventDefault(); submitEmailPassword(); }
+        }, [
+            h('label', {}, [h('span', { class: 'sidp-portal__label', text: 'Correo electrónico' }), email]),
+            h('label', {}, [h('span', { class: 'sidp-portal__label', text: 'Contraseña' }), password]),
+            submit,
+            h('div', { class: 'sidp-portal__divider' }, ['o']),
+            google,
+            status,
+            switchRow
+        ]);
+        switchRow.appendChild(switchHint);
+        switchRow.appendChild(document.createTextNode(' '));
+        switchRow.appendChild(switchBtn);
+
+        const sessionView = h('div', { class: 'sidp-portal__view sidp-portal__session', id: 'sidpPortalSession', hidden: true });
+        const loginView = h('div', { class: 'sidp-portal__view', id: 'sidpPortalLogin' }, [badge, title, subtitle, form]);
+
+        const content = h('div', { class: 'modal-content sidp-portal__content' }, [
+            h('button', {
+                class: 'sidp-portal__close', type: 'button', id: 'sidpPortalClose',
+                'aria-label': 'Cerrar portal', onclick: () => close()
+            }, ['×']),
+            loginView,
+            sessionView
+        ]);
+
+        const overlay = h('div', {
+            class: 'modal-overlay sidp-portal', id: 'sidpPortalOverlay',
+            role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': 'sidpPortalTitle',
+            'data-portal-modal': 'true', 'aria-hidden': 'true',
+            onclick: evt => { if (evt.target === overlay) close(); }
+        }, [content]);
+
+        overlay.style.setProperty('display', 'none', 'important');
+        (document.body || document.documentElement).appendChild(overlay);
+
+        let mode = 'login';
+
+        function setMode(next) {
+            mode = next;
+            const register = mode === 'register';
+            submit.textContent = register ? 'Crear cuenta y entrar' : COPY[activeIntent].submit;
+            password.setAttribute('autocomplete', register ? 'new-password' : 'current-password');
+            switchHint.textContent = register ? '¿Ya tienes cuenta?' : '¿Aún no tienes cuenta?';
+            switchBtn.textContent = register ? 'Iniciar sesión' : 'Crear cuenta';
+            setStatus('', 'info');
+        }
+
+        return {
+            overlay, content, loginView, sessionView, form,
+            email, password, submit, google, status,
+            badge, title, subtitle, switchRow,
+            setMode, getMode: () => mode
+        };
+    }
+
+    function ensureUi() {
+        if (!ui) ui = buildModal();
+        return ui;
+    }
+
+    function setStatus(message, kind) {
+        if (!ui) return;
+        ui.status.textContent = message || '';
+        ui.status.setAttribute('data-kind', kind || 'info');
+    }
+
+    function setBusy(next, label) {
+        busy = !!next;
+        if (!ui) return;
+        ui.submit.disabled = busy;
+        ui.google.disabled = busy;
+        ui.submit.textContent = busy ? (label || 'Verificando…') : COPY[activeIntent].submit;
+    }
+
+    /* ── Apertura / cierre ──────────────────────────────────────────── */
+    async function open(intent, trigger) {
+        activeIntent = normalizeIntent(intent);
+        lastTrigger = trigger || lastTrigger || null;
+
+        const refs = ensureUi();
+        const copy = COPY[activeIntent];
+        refs.badge.textContent = activeIntent === 'admin' ? 'Acceso restringido' : 'Acceso clientes';
+        refs.title.textContent = copy.title;
+        refs.subtitle.textContent = copy.subtitle;
+        refs.switchRow.style.display = copy.allowRegister ? '' : 'none';
+        refs.google.disabled = false;
+        refs.sessionView.hidden = true;
+        refs.loginView.hidden = false;
+        refs.setMode('login');
+        setStatus(isOnline() ? 'Cargando Firebase Auth…' : 'Sin conexión: puedes continuar en modo invitado.', 'info');
+
+        refs.overlay.classList.add('active');
+        refs.overlay.setAttribute('aria-hidden', 'false');
+        refs.overlay.style.removeProperty('display');
+        if (document.body) document.body.classList.add('sidp-portal-open');
+        refs.overlay.style.setProperty('pointer-events', 'auto', 'important');
+
+        document.addEventListener('keydown', onKeydown, true);
+        try { refs.email.focus(); } catch (e) { /* noop */ }
+
+        /* Lógica de Firebase Auth: SDK + sesión previa */
+        const fb = await ensureFirebase();
+        if (!refs.overlay.classList.contains('active')) return { ok: false, reason: 'closed' };
+        bindAuthListener(fb);
+
+        if (!fb) {
+            renderOfflineMode();
+            return { ok: false, reason: 'firebase-unavailable', intent: activeIntent };
+        }
+
+        let user = null;
+        try { user = fb.auth().currentUser; } catch (err) { warn(err && err.message); }
+
+        if (user) {
+            setStatus('Sesión detectada…', 'info');
+            await onAuthenticated(user, activeIntent);
+            return { ok: true, intent: activeIntent, user: user };
+        }
+
+        setStatus('Ingresa tus credenciales para continuar.', 'info');
+        return { ok: true, intent: activeIntent, user: null };
+    }
+
+    function renderOfflineMode() {
+        if (!ui) return;
+        ui.google.disabled = true;
+        ui.submit.disabled = true;
+        setStatus('No pudimos conectar con Firebase Auth (sin red o dominio no autorizado).', 'error');
+        const guest = h('button', {
+            class: 'sidp-portal__btn sidp-portal__btn--ghost', type: 'button', id: 'sidpPortalGuest',
+            onclick: () => finishSession(null, activeIntent, true)
+        }, ['Continuar en modo invitado']);
+        const existing = ui.form.querySelector('#sidpPortalGuest');
+        if (existing) existing.remove();
+        ui.form.appendChild(guest);
+    }
+
+    function close() {
+        if (!ui) return;
+        ui.overlay.classList.remove('active');
+        ui.overlay.setAttribute('aria-hidden', 'true');
+        ui.overlay.style.setProperty('display', 'none', 'important');
+        if (document.body) document.body.classList.remove('sidp-portal-open');
+        ui.overlay.style.setProperty('pointer-events', 'none', 'important');
+        document.removeEventListener('keydown', onKeydown, true);
+        const guest = ui.form.querySelector('#sidpPortalGuest');
+        if (guest) guest.remove();
+        ui.submit.disabled = false;
+        ui.google.disabled = false;
+        busy = false;
+        if (lastTrigger && typeof lastTrigger.focus === 'function') {
+            try { lastTrigger.focus(); } catch (e) { /* noop */ }
+        }
+    }
+
+    function onKeydown(evt) {
+        if (!evt) return;
+        if (evt.key === 'Escape' || evt.key === 'Esc') {
+            evt.preventDefault();
+            close();
+            return;
+        }
+        if (evt.key !== 'Tab' || !ui) return;
+        /* Focus trap sencillo */
+        const nodes = ui.overlay.querySelectorAll('button, input, [href], select, textarea');
+        const focusables = Array.prototype.slice.call(nodes).filter(el => !el.disabled);
+        if (!focusables.length) return;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const active = document.activeElement;
+        if (evt.shiftKey && active === first) { evt.preventDefault(); last.focus(); }
+        else if (!evt.shiftKey && active === last) { evt.preventDefault(); first.focus(); }
+    }
+
+    /* ── Acciones de autenticación ──────────────────────────────────── */
+    async function submitEmailPassword() {
+        if (busy) return;
+        const refs = ensureUi();
+        const emailValue = String(refs.email.value || '').trim();
+        const passwordValue = String(refs.password.value || '');
+        const registering = refs.getMode() === 'register';
+
+        if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+            setStatus('Escribe un correo electrónico válido.', 'error');
+            refs.email.focus();
+            return;
+        }
+        if (passwordValue.length < 6) {
+            setStatus('La contraseña debe tener al menos 6 caracteres.', 'error');
+            refs.password.focus();
+            return;
+        }
+
+        const fb = await ensureFirebase();
+        if (!fb) { renderOfflineMode(); return; }
+
+        setBusy(true, registering ? 'Creando cuenta…' : 'Verificando…');
+        try {
+            const auth = fb.auth();
+            const credential = registering
+                ? await auth.createUserWithEmailAndPassword(emailValue, passwordValue)
+                : await auth.signInWithEmailAndPassword(emailValue, passwordValue);
+            const user = (credential && credential.user) || auth.currentUser;
+            if (registering && user && typeof user.updateProfile === 'function') {
+                try { await user.updateProfile({ displayName: emailValue.split('@')[0] }); } catch (e) { /* noop */ }
+            }
+            await onAuthenticated(user, activeIntent);
+        } catch (err) {
+            setBusy(false);
+            const message = friendlyAuthError(err);
+            setStatus(message, 'error');
+            warn('auth email/contraseña:', (err && (err.code || err.message)) || err);
+            /* auth/operation-not-allowed o dominio no autorizado → modo invitado */
+            if (/operation-not-allowed|unauthorized-domain|network-request-failed/.test(String((err && err.code) || ''))) {
+                renderOfflineMode();
+            }
+        }
+    }
+
+    async function signInWithGoogle() {
+        if (busy) return;
+        const fb = await ensureFirebase();
+        if (!fb) { renderOfflineMode(); return; }
+
+        setBusy(true, 'Abriendo Google…');
+        try {
+            const provider = new fb.auth.GoogleAuthProvider();
+            provider.setCustomParameters({ prompt: 'select_account' });
+            const auth = fb.auth();
+            let credential = null;
+            try {
+                credential = await auth.signInWithPopup(provider);
+            } catch (popupErr) {
+                const code = String((popupErr && popupErr.code) || '');
+                if (/popup-blocked/.test(code)) {
+                    setStatus('Continúa en la ventana que abrió el navegador…', 'info');
+                    await auth.signInWithRedirect(provider);
+                    return;
+                }
+                throw popupErr;
+            }
+            const user = (credential && credential.user) || auth.currentUser;
+            await onAuthenticated(user, activeIntent);
+        } catch (err) {
+            setBusy(false);
+            setStatus(friendlyAuthError(err), 'error');
+            warn('auth Google:', (err && (err.code || err.message)) || err);
+            if (/operation-not-allowed|unauthorized-domain|network-request-failed/.test(String((err && err.code) || ''))) {
+                renderOfflineMode();
+            }
+        }
+    }
+
+    /* ── Rol + ruteo ────────────────────────────────────────────────── */
+    async function resolveRole(user, intent) {
+        const fallback = intent === 'admin' ? 'admin' : 'cliente';
+        if (!user) return fallback;
+        const fb = await ensureFirebase();
+        if (!fb || typeof fb.firestore !== 'function') return fallback;
+
+        let db = null;
+        try { db = fb.firestore(); } catch (err) { warn('firestore:', err && err.message); return fallback; }
+
+        try {
+            const snap = await db.collection('users').doc(user.uid).get();
+            if (snap && snap.exists) {
+                const data = snap.data() || {};
+                const role = data.role || data.rol || data.fallbackRole;
+                if (role === 'admin' || role === 'cliente') return role;
+            }
+        } catch (err) {
+            warn('no se pudo leer users/{uid}:', err && err.message);
+        }
+
+        if (user.email) {
+            try {
+                const adminSnap = await db.collection('admins').doc(user.email).get();
+                if (adminSnap && adminSnap.exists) return 'admin';
+            } catch (err) {
+                warn('no se pudo leer admins/{email}:', err && err.message);
+            }
+        }
+        return fallback;
+    }
+
+    async function persistProfile(fb, user, role) {
+        if (!fb || !user || typeof fb.firestore !== 'function') return;
+        try {
+            const db = fb.firestore();
+            const payload = {
+                uid: user.uid,
+                email: user.email || null,
+                displayName: user.displayName || (user.email ? user.email.split('@')[0] : null),
+                role: role,
+                updatedAt: new Date().toISOString()
+            };
+            await db.collection('users').doc(user.uid).set(payload, { merge: true });
+        } catch (err) {
+            /* Las reglas exigen permisos; no bloqueamos el acceso por esto */
+            warn('no se pudo guardar el perfil:', err && err.message);
+        }
+    }
+
+    async function portalRouteIsLive(target) {
+        if (typeof fetch !== 'function') return false;
+        try {
+            const res = await fetch(target, { method: 'GET', credentials: 'same-origin', cache: 'no-store' });
+            if (!res || !res.ok) return false;
+            const html = await res.text();
+            /* El fallback SPA sirve index.html: exigimos el punto de montaje #app */
+            return /id=["']app["']/.test(String(html || ''));
+        } catch (err) {
+            return false;
+        }
+    }
+
+    async function onAuthenticated(user, intent) {
+        ensureUi();
+        /* onAuthStateChanged y la comprobación de currentUser pueden coincidir:
+           se procesa una única vez por sesión + intent (evita trabajo doble). */
+        const authKey = `${(user && user.uid) || 'anon'}::${intent}`;
+        if (lastAuth.key === authKey && Date.now() - lastAuth.at < 3000) {
+            return { ok: true, deduped: true, role: lastAuth.role };
+        }
+        lastAuth = { key: authKey, at: Date.now(), role: lastAuth.role };
+        const fb = await ensureFirebase();
+        setBusy(true, 'Preparando panel…');
+        const role = await resolveRole(user, intent);
+        lastAuth = { key: authKey, at: Date.now(), role: role };
+        await persistProfile(fb, user, role);
+        setBusy(false);
+
+        if (intent === 'admin' && role !== 'admin') {
+            setStatus('Tu cuenta no tiene permisos de administrador. Un administrador debe agregarte en Firestore (admins/{email}).', 'error');
+            warn(`acceso admin denegado para ${user && user.email} (rol=${role})`);
+            return { ok: false, reason: 'forbidden', role: role };
+        }
+        await finishSession(user, role, false);
+        return { ok: true, role: role, user: user };
+    }
+
+    async function finishSession(user, role, guest) {
+        ensureUi();
+        const target = `${PORTAL_ROUTE}?intent=${role}`;
+        const live = await portalRouteIsLive(target);
+
+        try {
+            sessionStorage.setItem('sidp-portal-intent', role);
+            sessionStorage.setItem('sidp-portal-guest', guest ? '1' : '0');
+            if (user && user.email) sessionStorage.setItem('sidp-portal-email', user.email);
+        } catch (err) { /* almacenamiento no disponible */ }
+
+        if (live && window.history && typeof history.replaceState === 'function') {
+            try { history.replaceState({ sidpPortal: role }, '', target); } catch (err) { warn('replaceState:', err && err.message); }
+        }
+
+        renderSession({ user, role, guest, target, live });
+
+        /* Punto de extensión: si el SPA del panel está cargado, que se monte. */
+        if (typeof window.SIDPRenderPortal === 'function') {
+            try { window.SIDPRenderPortal({ user, role, guest, target }); } catch (err) { warn('SIDPRenderPortal:', err && err.message); }
+        }
+        return { ok: true, role, target, live };
+    }
+
+    function renderSession(state) {
+        const refs = ensureUi();
+        const email = (state.user && state.user.email) || 'invitado@sidpesaje.com';
+        const initials = email.slice(0, 2).toUpperCase();
+        const roleLabel = state.role === 'admin' ? 'Administrador' : 'Cliente';
+
+        refs.sessionView.innerHTML = '';
+        refs.sessionView.appendChild(h('div', { class: 'sidp-portal__avatar' }, [initials]));
+        refs.sessionView.appendChild(h('h2', { class: 'sidp-portal__title', text: state.guest ? 'Modo invitado' : 'Sesión iniciada' }));
+        refs.sessionView.appendChild(h('p', { class: 'sidp-portal__subtitle', text: email }));
+        refs.sessionView.appendChild(h('span', { class: 'sidp-portal__role', text: `Rol: ${roleLabel}` }));
+
+        const actions = h('div', { class: 'sidp-portal__actions' });
+        if (state.live) {
+            actions.appendChild(h('a', {
+                class: 'sidp-portal__btn', href: state.target,
+                onclick: () => { try { sessionStorage.setItem('sidp-portal-intent', state.role); } catch (e) { /* noop */ } }
+            }, ['Continuar al panel']));
+        } else {
+            actions.appendChild(h('p', {
+                class: 'sidp-portal__status', 'data-kind': 'info',
+                text: `La ruta ${PORTAL_ROUTE} no está disponible en este entorno. Tu sesión queda activa y el rol guardado.`
+            }));
+        }
+        if (!state.guest) {
+            actions.appendChild(h('button', {
+                class: 'sidp-portal__btn sidp-portal__btn--ghost', type: 'button', onclick: () => signOut()
+            }, ['Cerrar sesión']));
+        }
+        actions.appendChild(h('button', {
+            class: 'sidp-portal__btn sidp-portal__btn--ghost', type: 'button', onclick: () => close()
+        }, ['Volver al sitio']));
+
+        refs.sessionView.appendChild(actions);
+        refs.loginView.hidden = true;
+        refs.sessionView.hidden = false;
+        setStatus('', 'info');
+    }
+
+    async function signOut() {
+        const fb = await ensureFirebase();
+        try {
+            if (fb) await fb.auth().signOut();
+        } catch (err) {
+            warn('signOut:', err && err.message);
+        }
+        try {
+            sessionStorage.removeItem('sidp-portal-intent');
+            sessionStorage.removeItem('sidp-portal-guest');
+            sessionStorage.removeItem('sidp-portal-email');
+        } catch (err) { /* noop */ }
+        lastAuth = { key: null, at: 0, role: null };
+        if (ui) {
+            ui.sessionView.hidden = true;
+            ui.loginView.hidden = false;
+            ui.password.value = '';
+            setStatus('Sesión cerrada.', 'success');
+        }
+    }
+
+    /* ── API pública del módulo ─────────────────────────────────────── */
+    return {
+        open,
+        close,
+        signOut,
+        get intent() { return activeIntent; },
+        get isOpen() { return !!(ui && ui.overlay.classList.contains('active')); },
+        config: { route: PORTAL_ROUTE, projectId: FIREBASE_CONFIG.projectId }
+    };
+})();
+
+/* API pública (no depende del alcance léxico de main.js) */
+window.SIDPPortal = SIDP_PORTAL;
+
+/* ─────────────────────────────────────────────────────────────────────
+   FUNCIÓN GLOBAL DE ACCESO AL PORTAL
+   Declaración explícita en window: es lo que invocan los botones
+   "Entrar como Cliente" / "Entrar como Administrador" de index.html.
+   Acepta 'cliente' (por defecto) o 'admin'.
+   ───────────────────────────────────────────────────────────────────── */
+window.abrirPortalClientes = function (intent) {
+    // lógica de Firebase Auth aquí
+    try {
+        const trigger = (typeof document !== 'undefined' && document.activeElement) || null;
+        const result = SIDP_PORTAL.open(intent, trigger);
+        /* Nunca dejamos una promesa rechazada sin manejar → consola limpia */
+        if (result && typeof result.catch === 'function') {
+            result.catch(err => console.warn('[portal] apertura interrumpida:', err && err.message));
+        }
+        return result;
+    } catch (err) {
+        /* Red de seguridad: ni un clic puede volver a lanzar un TypeError */
+        console.warn('[portal] no se pudo abrir el portal:', err && err.message);
+        try {
+            const role = String(intent || 'cliente').toLowerCase().indexOf('admin') === 0 ? 'admin' : 'cliente';
+            window.location.href = `/agenda?intent=${role}`;
+        } catch (navErr) {
+            /* noop */
+        }
+        return null;
+    }
+};
+
+/* ─────────────────────────────────────────────────────────────────────
+   LISTENER DELEGADO EQUIVALENTE
+   Respaldo del onclick inline: funciona aunque un CSP prohíba los
+   manejadores en línea. Se ignora cuando el botón ya trae onclick para
+   no abrir el portal dos veces.
+   ───────────────────────────────────────────────────────────────────── */
+document.addEventListener('click', function onPortalDelegatedClick(event) {
+    try {
+        const trigger = event && event.target && typeof event.target.closest === 'function'
+            ? event.target.closest('[data-portal-intent]')
+            : null;
+        if (!trigger) return;
+        event.preventDefault();
+        if (trigger.hasAttribute('onclick')) return; // el inline ya lo gestiona
+        window.abrirPortalClientes(trigger.getAttribute('data-portal-intent'));
+    } catch (err) {
+        console.warn('[portal] listener delegado:', err && err.message);
+    }
+}, true);
+
+// ═══════════════════════════════════════════════════════
+// 1. BOOTSTRAP DE LA PÁGINA
+// ═══════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', () => {
 
     // Safety reset — remove stale lock classes

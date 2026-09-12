@@ -653,11 +653,11 @@
                         <h4 class="text-center mx-auto">Acceder al portal</h4>
                         <p class="text-center mx-auto">Ingresa al mismo sistema SPA con Firebase Auth. La experiencia final cambia automaticamente segun el rol guardado en Firestore.</p>
                         <div class="portal-access-actions flex flex-col items-center justify-center w-full mx-auto">
-                            <a href="/agenda?intent=cliente" onclick="event.preventDefault(); window.abrirPortalClientes('cliente');" class="btn btn--primary btn--glow portal-access-btn">
+                            <a href="/agenda?intent=cliente" data-portal-intent="cliente" aria-haspopup="dialog" onclick="event.preventDefault(); abrirPortalClientes('cliente');" class="btn btn--primary btn--glow portal-access-btn">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                                 Entrar como Cliente
                             </a>
-                            <a href="/agenda?intent=admin" onclick="event.preventDefault(); window.abrirPortalClientes('admin');" class="btn btn--secondary portal-access-btn portal-access-btn--admin">
+                            <a href="/agenda?intent=admin" data-portal-intent="admin" aria-haspopup="dialog" onclick="event.preventDefault(); abrirPortalClientes('admin');" class="btn btn--secondary portal-access-btn portal-access-btn--admin">
                                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>
                                 Entrar como Administrador
                             </a>
@@ -942,10 +942,20 @@
          se resuelva, y expone window.SIDPHero.applyBackground(). -->
     <script defer src="js/hero-immersive.js"></script>
     <script type="module" src="js/hero-flyer.js"></script>
-    <script type="module" src="js/client-panel.js"></script>
-    <script type="module" src="js/admin-bootstrap.js"></script>
+    <!-- js/client-panel.js y js/admin-bootstrap.js NO existen en el repositorio:
+         cada carga devolvía 404 (dos errores en consola, también en producción).
+         El acceso al portal quedó implementado en main.js → window.abrirPortalClientes().
+         Si el SPA del panel regresa al repo, reactivar aquí sus etiquetas module. -->
     <script src="https://unpkg.com/aos@2.3.1/dist/aos.js"></script>
-    <script>AOS.init({ disable: true });</script>
+    <script>
+        /* AOS viene de un CDN: si no carga, no debe romper la consola.
+           El sitio ya usa su propio motor de revelado (main.js → iosRevealSystem). */
+        if (window.AOS && typeof window.AOS.init === 'function') {
+            window.AOS.init({ disable: true });
+        } else {
+            console.warn('[AOS] CDN no disponible: se omite init (el revelado lo gestiona main.js).');
+        }
+    </script>
     <script src="emergency-fix.js"></script>
 
 </body>
