@@ -1,34 +1,64 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    SID PESAJE — js/hero-flyer.js
-   CARGA DEL FLYER PRINCIPAL → imageData (Base64) → fondo de alta definición
+   CARGA DEL FLYER PRINCIPAL → fondo del hero en la mayor calidad disponible
    ───────────────────────────────────────────────────────────────────────────
-   NOTA DE INTEGRACIÓN: este archivo estaba referenciado en index.html pero no
-   existía en el repositorio (devolvía 404), así que el hero se quedaba sin
-   fotografía y sólo se veía el degradado de reserva. Se repone aquí de forma
-   NO DESTRUCTIVA:
+   CONTRATO VERIFICADO EN VIVO (no supuesto):
 
-     · Si otro módulo ya aplicó un fondo real, éste se retira (handshake).
-     · Orden de resolución:
-         1. window.SIDP_HERO_FLYER_PROVIDER()  ← punto de extensión propio
-         2. Firebase compat SDK (window.firebase) → colección `public-flyers`
-         3. Firestore REST (sin SDK) → colección `public-flyers`
-         4. Reserva local (hero_truck_scale.png)
+     Firestore · proyecto `sidpesaje` · colección `public_settings`
+     └─ única colección con `allow read: if true` en firestore.rules, así que
+        se puede leer de forma anónima, sin SDK ni sesión iniciada.
 
-   La nitidez nunca se decide aquí: se delega en
+     public_settings/hero_config → campo `flyerBase64`  → JPEG 200×200
+     public_settings/site_flyer  → campo `imageUrl`     → JPEG 800×800
+
+   Ambos campos traen un data URL completo (`data:image/jpeg;base64,…`).
+
+   POLÍTICA DE CALIDAD: se descargan TODOS los candidatos y se mide la
+   resolución nativa de cada uno con SIDPHero.measureImage(); se aplica el de
+   MAYOR área. Con el estado actual eso elige site_flyer (800×800) en vez de
+   hero_config (200×200), que es 16× más información de imagen.
+
+   IMPORTANTE: ninguna técnica de CSS puede crear resolución que no existe en
+   el archivo. Para nitidez nativa en un hero de pantalla completa hace falta
+   publicar arte de >= 1920px de ancho (ideal 2880px para Retina) y, de
+   preferencia, apaisado: las fuentes actuales son cuadradas, así que `cover`
+   en un viewport panorámico recorta la mayor parte del flyer.
+
+   La nitidez del render no se decide aquí: se delega en
    window.SIDPHero.applyBackground() (js/hero-immersive.js), que decodifica el
-   Base64 completo y lo fija con cover/center/crisp-edges.
+   Base64 completo, fija cover/center y aplica image-rendering adaptativo.
    ═══════════════════════════════════════════════════════════════════════════ */
 
 const FIRESTORE_PROJECT_ID = 'sidpesaje';
-const FLYER_COLLECTION = 'public-flyers';
-const FALLBACK_IMAGES = ['hero_truck_scale.png', 'hero_industrial_bg.png'];
+const SETTINGS_COLLECTION = 'public_settings';
+
+/* Nombres de campo aceptados, en orden de preferencia si empatan en resolución.
+   Los dos primeros son los que existen hoy en producción. */
+const FLYER_FIELDS = [
+    'imageUrl', 'flyerBase64',
+    'imageData', 'imageBase64', 'base64',
+    'url', 'downloadURL', 'flyerUrl'
+];
+
+/* Reserva local de ALTA RESOLUCIÓN (assets/). Se elige 1× o 2× según el
+   devicePixelRatio: 1376×768 cubre un portátil de forma nativa y 2752×1536
+   cubre pantallas grandes/Retina sin que el navegador tenga que ampliar.
+   Sólo se usa si Firestore no entrega ningún flyer. */
+function fallbackImages() {
+    const dpr = window.devicePixelRatio || 1;
+    const hi = 'assets/hero-bg-industrial@2x.jpg';
+    const lo = 'assets/hero-bg-industrial.jpg';
+    return dpr > 1.5
+        ? [hi, lo, 'hero_truck_scale.png', 'hero_industrial_bg.png']
+        : [lo, hi, 'hero_truck_scale.png', 'hero_industrial_bg.png'];
+}
 
 /* Margen para que un módulo de flyer ajeno pinte primero (handshake). */
 const HANDSHAKE_TIMEOUT = 250;
 /* Cuánto esperamos al flyer real antes de pintar la reserva local (LCP). */
-const SOFT_DEADLINE = 1100;
-/* Tope de red para la consulta a Firestore antes de abortar. */
-const FETCH_TIMEOUT = 4000;
+const SOFT_DEADLINE = 2500;
+/* Tope de red por consulta antes de abortar. */
+const FETCH_TIMEOUT = 8000;
 
 /** Marca global para no ejecutar dos veces si el script se duplica. */
 if (window.__SIDP_HERO_FLYER_LOADED__) {
@@ -42,8 +72,6 @@ async function bootstrap() {
     const hero = document.getElementById('hero') || document.querySelector('.hero');
     if (!hero) return;
 
-    /* Espera a que el motor de nitidez esté disponible (se carga antes, pero
-       por robustez se reintenta unos frames). */
     const engine = await waitForEngine();
     if (!engine) {
         console.warn('[hero-flyer] window.SIDPHero no está disponible; se omite el fondo dinámico.');
@@ -57,12 +85,12 @@ async function bootstrap() {
 
     /* Estrategia de arranque (LCP primero):
        1. Se lanza la búsqueda del flyer real SIN bloquear el pintado.
-       2. Si no aparece nada en SOFT_DEADLINE ms, se pinta la reserva local al
-          instante: el hero nunca queda vacío ni esperando a la red.
-       3. Cuando el flyer real llega (aunque sea tarde), sustituye a la reserva
-          con un cross-fade. */
-    const flyerPromise = resolveFlyer().catch((err) => {
-        console.warn('[hero-flyer] No se pudo resolver el flyer:', err && err.message ? err.message : err);
+       2. Si no aparece nada en SOFT_DEADLINE ms, se pinta la reserva local: el
+          hero nunca queda vacío ni esperando a la red.
+       3. Cuando el flyer real llega (aunque sea tarde) sustituye a la reserva
+          con un cross-fade, pero sólo si el hero sigue en pantalla. */
+    const flyerPromise = resolveFlyer(engine).catch((err) => {
+        console.warn('[hero-flyer] No se pudo resolver el flyer:', msg(err));
         return null;
     });
 
@@ -70,15 +98,9 @@ async function bootstrap() {
 
     if (hasAppliedBackground(hero)) return;   /* otro módulo se nos adelantó */
 
-    if (flyer && (flyer.imageData || flyer.url)) {
-        const ok = await engine.applyBackground(flyer.imageData || flyer.url, {
-            position: flyer.position || 'center',
-            link: flyer.link || null,
-            alt: flyer.alt || 'Ultimo Flyer SIDPESAJE',
-            source: flyer.source || 'flyer'
-        });
-        if (ok) markLoaded(hero, flyer);
-        return;
+    if (flyer) {
+        const ok = await apply(engine, hero, flyer);
+        if (ok) return;
     }
 
     /* ── Reserva local inmediata ── */
@@ -86,34 +108,249 @@ async function bootstrap() {
     if (applied) markLoaded(hero, { source: 'fallback-local' });
     else if (skeleton) skeleton.textContent = 'Flyer no disponible';
 
-    /* ── Mejora tardía: si el flyer real aparece después, se aplica encima.
-       Sólo si el hero sigue en pantalla: sustituir el fondo cuando el usuario
-       ya bajó sería un cambio distractivo en vez de una mejora. ── */
+    /* ── Mejora tardía: sólo si el hero sigue visible ── */
     const late = await flyerPromise;
-    if (late && (late.imageData || late.url) && late.source !== 'fallback-local' && heroStillInView(hero)) {
-        const ok = await engine.applyBackground(late.imageData || late.url, {
-            position: late.position || 'center',
-            link: late.link || null,
-            alt: late.alt || 'Ultimo Flyer SIDPESAJE',
-            source: late.source || 'flyer'
+    if (late && heroStillInView(hero)) await apply(engine, hero, late);
+}
+
+function apply(engine, hero, flyer) {
+    return engine.applyBackground(flyer.value, {
+        position: flyer.position || 'center',
+        link: flyer.link || null,
+        alt: flyer.alt || 'Ultimo Flyer SIDPESAJE',
+        source: flyer.source || 'flyer'
+    }).then(function (ok) {
+        if (ok) {
+            markLoaded(hero, flyer);
+            console.info(
+                '[hero-flyer] Fondo aplicado: ' + flyer.width + '×' + flyer.height +
+                ' desde ' + flyer.source + ' (' + flyer.doc + '.' + flyer.field + ').'
+            );
+        }
+        return ok;
+    });
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Selección del candidato de MAYOR resolución
+   ───────────────────────────────────────────────────────────────────────── */
+
+/**
+ * Mide todos los candidatos en paralelo y devuelve el de mayor área nativa.
+ * Éste es el único paso que de verdad mejora la calidad del fondo: elegir la
+ * fuente con más píxeles reales disponibles.
+ */
+async function pickBestCandidate(engine, candidates) {
+    if (!candidates.length) return null;
+    if (candidates.length === 1) {
+        const only = candidates[0];
+        const m = await engine.measureImage(only.value);
+        return withSize(only, m);
+    }
+
+    const measured = await Promise.all(candidates.map(async function (cand) {
+        const m = await engine.measureImage(cand.value);
+        return withSize(cand, m);
+    }));
+
+    const valid = measured.filter(Boolean);
+    if (!valid.length) return null;
+
+    /* Mayor área gana; a igualdad, respeta el orden de FLYER_FIELDS. */
+    valid.sort(function (a, b) {
+        if (b.area !== a.area) return b.area - a.area;
+        return a.fieldRank - b.fieldRank;
+    });
+
+    if (valid.length > 1 && typeof console.info === 'function') {
+        console.info(
+            '[hero-flyer] Candidatos medidos: ' +
+            valid.map(function (c) {
+                return c.doc + '.' + c.field + ' ' + c.width + '×' + c.height;
+            }).join(' · ') +
+            ' → se usa ' + valid[0].doc + '.' + valid[0].field + '.'
+        );
+    }
+    return valid[0];
+}
+
+function withSize(candidate, measured) {
+    if (!measured) return null;
+    return Object.assign({}, candidate, {
+        width: measured.width,
+        height: measured.height,
+        area: measured.area
+    });
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Resolución de la fuente
+   ───────────────────────────────────────────────────────────────────────── */
+
+/** Devuelve el mejor candidato disponible, o null. */
+async function resolveFlyer(engine) {
+    /* 1) Punto de extensión: la app puede inyectar su propio proveedor. */
+    if (typeof window.SIDP_HERO_FLYER_PROVIDER === 'function') {
+        try {
+            const custom = await window.SIDP_HERO_FLYER_PROVIDER();
+            const cand = normalizeProvider(custom);
+            if (cand) {
+                const sized = await withSize(cand, await engine.measureImage(cand.value));
+                if (sized) return Object.assign(sized, { source: 'provider' });
+            }
+        } catch (err) {
+            console.warn('[hero-flyer] proveedor externo falló:', msg(err));
+        }
+    }
+
+    /* Espera breve: si un módulo propio va a pintar el fondo, que lo haga
+       primero y este archivo se retira solo. */
+    await delay(HANDSHAKE_TIMEOUT);
+    if (hasAppliedBackground(document.getElementById('hero') || document.querySelector('.hero'))) {
+        return null;
+    }
+
+    /* 2) Firebase compat SDK, si la app ya lo inicializó. */
+    let candidates = await readViaCompatSdk();
+
+    /* 3) Firestore REST sobre public_settings (lectura pública, sin SDK). */
+    if (!candidates.length) candidates = await readViaRest();
+
+    if (!candidates.length) return null;
+
+    const best = await pickBestCandidate(engine, candidates);
+    return best ? Object.assign(best, { source: best.source || 'firestore' }) : null;
+}
+
+function normalizeProvider(custom) {
+    if (!custom) return null;
+    const value = custom.imageData || custom.flyerBase64 || custom.imageUrl || custom.url || custom.value;
+    if (!value || typeof value !== 'string') return null;
+    return {
+        value: value.trim(),
+        doc: 'provider',
+        field: 'value',
+        fieldRank: 0,
+        link: custom.link || null,
+        alt: custom.alt || null,
+        position: custom.position || 'center',
+        source: custom.source || 'provider'
+    };
+}
+
+/** Extrae TODOS los campos de imagen de TODOS los docs, como candidatos. */
+function collectCandidates(docs, sourceName) {
+    const out = [];
+    (docs || []).forEach(function (doc) {
+        const fields = doc.fields || {};
+        const docId = shortName(doc.name);
+        const link = firstString(fields, ['link', 'linkUrl', 'ctaUrl']);
+        const alt = firstString(fields, ['alt', 'altText', 'title']);
+        if (isDisabled(fields)) return;
+
+        FLYER_FIELDS.forEach(function (field, rank) {
+            const raw = fields[field];
+            const value = raw && typeof raw.stringValue === 'string' ? raw.stringValue.trim() : '';
+            /* Se acepta data URL, Base64 puro o URL http(s)/ruta. */
+            if (value && (value.startsWith('data:') || value.startsWith('http') ||
+                          value.startsWith('/') || /^[A-Za-z0-9+/]{64,}/.test(value))) {
+                out.push({
+                    value: value, doc: docId, field: field, fieldRank: rank,
+                    link: link, alt: alt, position: 'center', source: sourceName
+                });
+            }
         });
-        if (ok) markLoaded(hero, late);
+    });
+    return out;
+}
+
+function isDisabled(fields) {
+    return ['active', 'published', 'visible', 'enabled'].some(function (key) {
+        return fields[key] && fields[key].booleanValue === false;
+    });
+}
+
+function firstString(fields, names) {
+    for (let i = 0; i < names.length; i++) {
+        const f = fields[names[i]];
+        if (f && typeof f.stringValue === 'string' && f.stringValue.trim()) return f.stringValue.trim();
+    }
+    return null;
+}
+
+function shortName(fullName) {
+    if (!fullName) return 'doc';
+    const parts = String(fullName).split('/');
+    return parts[parts.length - 1] || 'doc';
+}
+
+/* ── Vía 1: Firebase compat SDK ─────────────────────────────────────────── */
+async function readViaCompatSdk() {
+    const fb = window.firebase;
+    if (!fb || typeof fb.firestore !== 'function') return [];
+    try {
+        const db = fb.firestore();
+        if (!db || typeof db.collection !== 'function') return [];
+        const snap = await db.collection(SETTINGS_COLLECTION).get();
+        if (!snap || snap.empty) return [];
+        const docs = [];
+        snap.forEach(function (d) { docs.push({ name: d.id, fields: toRestFields(d.data()) }); });
+        return collectCandidates(docs, 'firestore-sdk');
+    } catch (err) {
+        return [];
     }
 }
 
-/** ¿El hero sigue visible? (para no swaps distractivos fuera de pantalla) */
-function heroStillInView(hero) {
-    const y = window.scrollY || window.pageYOffset || 0;
-    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
-    return y < Math.max(vh, hero.offsetHeight || vh) * 0.6;
+/** Adapta datos del SDK al formato { stringValue } que usa collectCandidates. */
+function toRestFields(data) {
+    const out = {};
+    Object.keys(data || {}).forEach(function (k) {
+        const v = data[k];
+        if (typeof v === 'string') out[k] = { stringValue: v };
+        else if (typeof v === 'boolean') out[k] = { booleanValue: v };
+        else if (v && typeof v === 'object') out[k] = { mapValue: { fields: toRestFields(v) } };
+    });
+    return out;
 }
 
-/** Espera `ms` como máximo; devuelve null si la promesa no se resolvió a tiempo. */
-function raceWithDeadline(promise, ms) {
-    return Promise.race([
-        promise,
-        new Promise((resolve) => window.setTimeout(() => resolve(null), ms))
-    ]);
+/* ── Vía 2: Firestore REST (sin dependencias) ───────────────────────────── */
+function restBase() {
+    return 'https://firestore.googleapis.com/v1/projects/' +
+        encodeURIComponent(FIRESTORE_PROJECT_ID) +
+        '/databases/(default)/documents/' + encodeURIComponent(SETTINGS_COLLECTION);
+}
+
+async function readViaRest() {
+    /* (a) Listar la colección: descubre docs y nombres de campo desconocidos. */
+    const listed = await fetchJson(restBase() + '?pageSize=25');
+    if (listed && listed.documents && listed.documents.length) {
+        return collectCandidates(listed.documents, 'firestore-rest');
+    }
+
+    /* (b) Si el listado está denegado, se intenta doc por doc. */
+    const docs = [];
+    for (const id of ['site_flyer', 'hero_config']) {
+        const one = await fetchJson(restBase() + '/' + encodeURIComponent(id));
+        if (one && one.fields) docs.push(one);
+    }
+    return collectCandidates(docs, 'firestore-rest');
+}
+
+async function fetchJson(url) {
+    try {
+        const controller = typeof AbortController === 'function' ? new AbortController() : null;
+        const timer = controller ? window.setTimeout(function () { controller.abort(); }, FETCH_TIMEOUT) : 0;
+        const res = await fetch(url, {
+            method: 'GET',
+            signal: controller ? controller.signal : undefined,
+            headers: { 'Accept': 'application/json' }
+        });
+        if (controller) window.clearTimeout(timer);
+        if (!res.ok) return null;
+        return await res.json();
+    } catch (err) {
+        return null;
+    }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -121,24 +358,26 @@ function raceWithDeadline(promise, ms) {
    ───────────────────────────────────────────────────────────────────────── */
 
 function waitForEngine(attempt = 0) {
-    return new Promise((resolve) => {
-        if (window.SIDPHero && typeof window.SIDPHero.applyBackground === 'function') {
+    return new Promise(function (resolve) {
+        if (window.SIDPHero && typeof window.SIDPHero.applyBackground === 'function' &&
+            typeof window.SIDPHero.measureImage === 'function') {
             resolve(window.SIDPHero);
             return;
         }
-        if (attempt > 40) { resolve(null); return; }
-        window.setTimeout(() => resolve(waitForEngine(attempt + 1)), 50);
+        if (attempt > 60) { resolve(null); return; }
+        window.setTimeout(function () { resolve(waitForEngine(attempt + 1)); }, 50);
     });
 }
 
 /** ¿Ya hay una fotografía real aplicada (por este módulo o por uno ajeno)? */
 function hasAppliedBackground(hero) {
+    if (!hero) return false;
     const candidates = [
         hero.style.getPropertyValue('--hero-flyer-bg-image'),
         getComputedStyle(hero).getPropertyValue('--hero-flyer-bg-image'),
         getComputedStyle(document.documentElement).getPropertyValue('--hero-flyer-bg-image')
     ];
-    return candidates.some((value) => value && value.indexOf('url(') !== -1);
+    return candidates.some(function (v) { return v && v.indexOf('url(') !== -1; });
 }
 
 function markLoaded(hero, flyer) {
@@ -156,127 +395,35 @@ function markLoaded(hero, flyer) {
     if (window.SIDPHero) window.SIDPHero.sync(true);
 }
 
-/**
- * Resuelve el flyer activo siguiendo la cadena de proveedores.
- * Devuelve { imageData, url, link, alt, position, source }.
- */
-async function resolveFlyer() {
-    /* 1) Punto de extensión: la app puede inyectar su propio proveedor. */
-    if (typeof window.SIDP_HERO_FLYER_PROVIDER === 'function') {
-        try {
-            const custom = await window.SIDP_HERO_FLYER_PROVIDER();
-            if (custom && (custom.imageData || custom.url)) {
-                return { position: 'center', ...custom, source: custom.source || 'provider' };
-            }
-        } catch (err) {
-            console.warn('[hero-flyer] proveedor externo falló:', err);
-        }
-    }
+/** ¿El hero sigue visible? (para no hacer swaps distractivos fuera de pantalla) */
+function heroStillInView(hero) {
+    const y = window.scrollY || window.pageYOffset || 0;
+    const vh = window.innerHeight || document.documentElement.clientHeight || 0;
+    return y < Math.max(vh, hero.offsetHeight || vh) * 0.6;
+}
 
-    /* Espera breve: si un módulo propio de flyer va a pintar el fondo, que lo
-       haga primero y este archivo se retira solo. */
-    await delay(HANDSHAKE_TIMEOUT);
-    if (hasAppliedBackground(document.getElementById('hero') || document.querySelector('.hero'))) {
-        return null;
-    }
-
-    /* 2) Firebase compat SDK, si la app ya lo inicializó. */
-    const fromSdk = await readFromCompatSdk();
-    if (fromSdk) return fromSdk;
-
-    /* 3) Firestore REST, sin dependencias. */
-    const fromRest = await readFromFirestoreRest();
-    if (fromRest) return fromRest;
-
-    return null;
+/** Espera `ms` como máximo; devuelve null si la promesa no se resolvió a tiempo. */
+function raceWithDeadline(promise, ms) {
+    return Promise.race([
+        promise,
+        new Promise(function (resolve) { window.setTimeout(function () { resolve(null); }, ms); })
+    ]);
 }
 
 function delay(ms) {
-    return new Promise((resolve) => window.setTimeout(resolve, ms));
+    return new Promise(function (resolve) { window.setTimeout(resolve, ms); });
 }
 
-function normalizeDoc(data, source) {
-    if (!data || typeof data !== 'object') return null;
-    const imageData = data.imageData || data.imageBase64 || data.base64 || null;
-    const url = data.downloadURL || data.downloadUrl || data.url || data.imageUrl || null;
-    if (!imageData && !url) return null;
-    if (data.active === false || data.published === false || data.visible === false) return null;
-    return {
-        imageData: typeof imageData === 'string' ? imageData.trim() : null,
-        url: typeof url === 'string' ? url.trim() : null,
-        link: data.link || data.linkUrl || data.ctaUrl || null,
-        alt: data.alt || data.altText || data.title || 'Ultimo Flyer SIDPESAJE',
-        position: data.position || 'center',
-        source
-    };
-}
-
-async function readFromCompatSdk() {
-    const fb = window.firebase;
-    if (!fb || typeof fb.firestore !== 'function') return null;
-    try {
-        const db = typeof fb.firestore === 'function' ? fb.firestore() : null;
-        if (!db || typeof db.collection !== 'function') return null;
-        const snap = await db.collection(FLYER_COLLECTION)
-            .orderBy('createdAt', 'desc')
-            .limit(1)
-            .get();
-        if (!snap || snap.empty) return null;
-        return normalizeDoc(snap.docs[0].data(), 'firestore-sdk');
-    } catch (err) {
-        /* Sin índice, sin permisos o sin SDK: se continúa con la siguiente vía */
-        return null;
-    }
-}
-
-async function readFromFirestoreRest() {
-    const endpoint = 'https://firestore.googleapis.com/v1/projects/' +
-        encodeURIComponent(FIRESTORE_PROJECT_ID) +
-        '/databases/(default)/documents/' + encodeURIComponent(FLYER_COLLECTION) +
-        '?pageSize=1&orderBy=' + encodeURIComponent('createdAt.desc');
-
-    try {
-        const controller = typeof AbortController === 'function' ? new AbortController() : null;
-        const timer = controller ? window.setTimeout(() => controller.abort(), FETCH_TIMEOUT) : 0;
-        const res = await fetch(endpoint, {
-            method: 'GET',
-            signal: controller ? controller.signal : undefined,
-            headers: { 'Accept': 'application/json' }
-        });
-        if (controller) window.clearTimeout(timer);
-        if (!res.ok) return null;
-
-        const payload = await res.json();
-        const doc = payload && payload.documents && payload.documents[0];
-        if (!doc || !doc.fields) return null;
-        return normalizeDoc(unwrapFirestoreFields(doc.fields), 'firestore-rest');
-    } catch (err) {
-        return null;
-    }
-}
-
-/** Convierte { imageData: { stringValue: '…' } } del REST a valores planos. */
-function unwrapFirestoreFields(fields) {
-    const out = {};
-    Object.keys(fields || {}).forEach((key) => {
-        const value = fields[key] || {};
-        if ('stringValue' in value) out[key] = value.stringValue;
-        else if ('booleanValue' in value) out[key] = value.booleanValue;
-        else if ('integerValue' in value) out[key] = Number(value.integerValue);
-        else if ('doubleValue' in value) out[key] = value.doubleValue;
-        else if ('timestampValue' in value) out[key] = value.timestampValue;
-        else if ('mapValue' in value) out[key] = unwrapFirestoreFields(value.mapValue.fields);
-        else out[key] = null;
-    });
-    return out;
+function msg(err) {
+    return err && err.message ? err.message : err;
 }
 
 /**
  * Reserva local: se pasa la URL (no Base64) para no inflar el CSS con un string
- * de ~1.3 MB. El motor la decodifica igual y aplica cover/center/crisp-edges.
+ * enorme. El motor la decodifica igual y aplica cover/center.
  */
 async function applyFallback(engine, hero) {
-    for (const src of FALLBACK_IMAGES) {
+    for (const src of fallbackImages()) {
         try {
             const ok = await engine.applyBackground(src, {
                 position: 'center',
@@ -286,8 +433,8 @@ async function applyFallback(engine, hero) {
             if (ok) {
                 console.info(
                     '[hero-flyer] Usando imagen de reserva (' + src + '). ' +
-                    'Para nitidez nativa en Retina, publica un flyer de >= 1920px de ancho ' +
-                    'en la colección "' + FLYER_COLLECTION + '" (campo imageData en Base64).'
+                    'No se pudo leer "' + SETTINGS_COLLECTION + '". Para nitidez nativa, ' +
+                    'publicá un flyer de >= 1920px de ancho.'
                 );
                 return true;
             }

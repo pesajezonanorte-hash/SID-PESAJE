@@ -112,7 +112,10 @@
     <!-- HERO SECTION — 3D PARALLAX ARTÍSTICO -->
     <!-- ═══════════════════════════════════════════ -->
     <section class="hero" id="hero">
-        <div id="hero-flyer" class="hero-flyer" hidden aria-live="polite" aria-label="Estado del flyer principal">
+        <!-- El contenedor del flyer arranca VISIBLE: alberga las dos capas de
+             foto (ambiente desenfocado + flyer completo). El <img> interior
+             sigue oculto hasta que el JS tenga una fuente decodificada. -->
+        <div id="hero-flyer" class="hero-flyer" aria-live="polite" aria-label="Estado del flyer principal">
             <span id="hero-flyer-skeleton" class="hero-flyer__skeleton text-white">Cargando flyer...</span>
             <img id="hero-flyer-img" class="hero-flyer__img" alt="Ultimo Flyer SIDPESAJE" loading="eager" decoding="async" hidden>
             <a id="hero-flyer-link" class="hero-flyer__link" href="#hero" aria-hidden="true" tabindex="-1"></a>

@@ -159,9 +159,37 @@
     }
 
     /**
-     * Aplica el fondo en alta definición.
+     * Mide una fuente de imagen SIN aplicarla: devuelve { width, height, area }
+     * o null si no decodifica. Sirve para elegir entre varios candidatos
+     * (p. ej. flyerBase64 de 200×200 vs imageUrl de 800×800) el de mayor
+     * resolución nativa, que es lo único que de verdad aporta nitidez.
+     */
+    async function measureImage(source) {
+        const src = toImageSource(source);
+        if (!src) return null;
+        try {
+            const img = await decodeImage(src);
+            const w = img.naturalWidth || 0;
+            const h = img.naturalHeight || 0;
+            if (!w || !h) return null;
+            return { width: w, height: h, area: w * h, src: src };
+        } catch (err) {
+            return null;
+        }
+    }
+
+    /** Ancho físico real que necesita el hero (px CSS × devicePixelRatio). */
+    function neededPhysicalWidth() {
+        if (!hero) return 0;
+        const dpr = window.devicePixelRatio || 1;
+        return Math.round((hero.clientWidth || window.innerWidth || 0) * dpr);
+    }
+
+    /**
+     * Aplica el fondo en alta definición y decide el modo de remuestreo.
      * @param {string} imageData  Base64 puro, data URL o URL de imagen.
      * @param {{position?:string, link?:string, alt?:string, source?:string}} [opts]
+     * @returns {Promise<boolean>} true si la imagen decodificó y se pintó.
      */
     async function applyBackground(imageData, opts) {
         const options = opts || {};
@@ -174,15 +202,29 @@
             /* Diagnóstico de nitidez: avisar (sin bloquear) si el arte es menor
                que el lienzo físico del panel — ahí `cover` tendría que upsamplear
                y la nitidez nativa es imposible. */
-            const dpr = window.devicePixelRatio || 1;
-            const neededWidth = Math.round(hero.clientWidth * dpr);
-            if (img.naturalWidth && img.naturalWidth < neededWidth * 0.75) {
+            const neededWidth = neededPhysicalWidth();
+            const upscale = neededWidth && img.naturalWidth
+                ? neededWidth / img.naturalWidth
+                : 1;
+
+            if (upscale > 1.33) {
                 console.info(
                     '[SIDPHero] El flyer (' + img.naturalWidth + '×' + img.naturalHeight +
-                    ') es menor que el lienzo Retina (' + neededWidth + 'px). ' +
-                    'Sube el arte a >= ' + neededWidth + 'px de ancho para nitidez nativa.'
+                    ') se está ampliando ' + upscale.toFixed(1) + '× para llenar ' +
+                    neededWidth + 'px físicos. Para nitidez nativa, subí arte de >= ' +
+                    neededWidth + 'px de ancho.'
                 );
             }
+
+            /* ── image-rendering ADAPTATIVO ──
+               `crisp-edges` preserva el contraste cuando NO hay remuestreo, pero
+               sobre una fuente que se está ampliando 2× o más produce dientes de
+               sierra y bordes dentados: justo lo contrario de "mayor calidad".
+               Por eso sólo se usa crisp cuando el arte cubre el lienzo; si hay
+               que ampliar, se deja el remuestreo suave del navegador, que es lo
+               que mejor se ve con fotos. */
+            hero.classList.toggle('hero--bg-upscaled', upscale > 1.15);
+            hero.dataset.flyerUpscale = upscale.toFixed(2);
 
             writeBackgroundVar(src, options.position);
 
@@ -196,17 +238,23 @@
             hero.classList.add('hero--has-flyer-bg');
             hero.dataset.flyerSource = options.source || 'unknown';
 
-            /* Espejo en el <img> del hero SÓLO si está realmente renderizado.
-               emergency-fix.css lo oculta (display:none !important) porque la
-               foto ahora se pinta como fondo a sangre: asignarle el src ahí
-               provocaría decodificar por segunda vez un data URL de varios MB
-               sin ningún beneficio visible ni de accesibilidad. */
+            /* ── EL FLYER COMPLETO vive en el <img> del hero ──────────────
+               Ya no es un espejo opcional: #hero-flyer-img ES la capa que
+               muestra la imagen ENTERA (object-fit: contain) a scroll 0, y
+               escala hasta cover al bajar. Se le asigna SIEMPRE que exista;
+               el coste de decodificación lo absorbe la caché de imágenes del
+               navegador (misma URL que ::before y el ambiente). */
             const imgEl = document.getElementById('hero-flyer-img');
-            if (imgEl && isRendered(imgEl)) {
+            if (imgEl) {
                 imgEl.src = src;
                 if (options.alt) imgEl.alt = options.alt;
                 imgEl.removeAttribute('hidden');
             }
+
+            /* Factor k con el que el encaje contain coincide con cover. */
+            state.flyerW = img.naturalWidth;
+            state.flyerH = img.naturalHeight;
+            updateCompleteScale();
             const skeleton = document.getElementById('hero-flyer-skeleton');
             if (skeleton) skeleton.setAttribute('hidden', '');
 
@@ -269,8 +317,32 @@
         vh: 0,
         travel: 1,
         queued: false,
-        pendingForce: false
+        pendingForce: false,
+        flyerW: 0,
+        flyerH: 0
     };
+
+    /**
+     * Calcula k = cover/contain para el flyer actual y lo publica como
+     * --hero-complete-k. CSS lo combina con --hero-ui-progress:
+     *   scale = 1 + progress × (k − 1)
+     * de modo que a scroll 0 el <img> encaja la imagen ENTERA y, al bajar,
+     * ese mismo elemento crece hasta recortarse exactamente como `cover`.
+     * Para un flyer cuadrado en un hero 2:1, k = 2.
+     */
+    function updateCompleteScale() {
+        if (!hero) return;
+        const W = hero.clientWidth || window.innerWidth || 0;
+        const H = hero.clientHeight || hero.offsetHeight || window.innerHeight || 0;
+        const nw = state.flyerW, nh = state.flyerH;
+        let k = 1;
+        if (W > 0 && H > 0 && nw > 0 && nh > 0) {
+            const cover = Math.max(W / nw, H / nh);
+            const contain = Math.min(W / nw, H / nh);
+            if (contain > 0) k = cover / contain;
+        }
+        hero.style.setProperty('--hero-complete-k', k.toFixed(4));
+    }
 
     /** Lee geometría UNA vez (fuera del bucle de scroll: cero reflow por frame). */
     function measure() {
@@ -278,6 +350,8 @@
         state.vh = window.innerHeight || root.clientHeight || 800;
         const heroHeight = hero.offsetHeight || state.vh;
         state.travel = Math.max(240, Math.min(state.vh, heroHeight) * TRAVEL_RATIO);
+        /* Si cambió la caja del hero (resize/orientación), k también cambia. */
+        updateCompleteScale();
     }
 
     function writeFrame(force) {
@@ -384,11 +458,13 @@
 
     window.SIDPHero = {
         installed: true,
-        version: '1.0.0',
+        version: '1.1.0',
         applyBackground: applyBackground,
+        measureImage: measureImage,          /* mide candidatos sin aplicarlos */
+        neededPhysicalWidth: neededPhysicalWidth,
         toImageSource: toImageSource,
         sync: sync,
-        measure: measure
+        measure: measure                     /* re-mide la geometría del hero */
     };
 
     if (document.readyState === 'loading') {
